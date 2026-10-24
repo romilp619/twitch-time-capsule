@@ -1,0 +1,38 @@
+{
+  "name": "twitch-time-capsule",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Seal Twitch chat predictions and reveal them live on stream.",
+  "license": "MIT",
+  "engines": {
+    "node": ">=20.19.0"
+  },
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc -p tsconfig.build.json",
+    "start": "node dist/index.js",
+    "test": "vitest run",
+    "demo": "tsx src/demo/index.ts",
+    "lint": "eslint . && prettier --check .",
+    "format": "prettier --write .",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "better-sqlite3": "^12.11.1",
+    "dotenv": "^17.4.2",
+    "fastify": "^5.12.7",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@types/better-sqlite3": "^7.6.13",
+    "@types/node": "^22.20.5",
+    "eslint": "^10.13.0",
+    "prettier": "^3.9.10",
+    "tsx": "^4.23.15",
+    "typescript": "5.9",
+    "typescript-eslint": "^8.72.0",
+    "vitest": "^4.1.12"
+  }
+}
