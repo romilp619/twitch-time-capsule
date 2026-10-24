@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Time Capsule - Connection</title>
+    <link rel="stylesheet" href="/dashboard/style.css" />
+    <script src="/dashboard/app.js" defer></script>
+  </head>
+  <body>
+    <div class="shell">
+      <header>
+        <a class="brand" href="/health"
+          ><span class="brand-icon" aria-hidden="true"></span> TIME CAPSULE</a
+        ><span class="phase">CHANNEL CONNECTION</span>
+      </header>
+      <main>
+        <div class="intro">
+          <p class="eyebrow">THE FUTURE STARTS IN CHAT</p>
+          <h1>A little setup.<br />A lot to look forward to.</h1>
+          <p class="subtitle">
+            Connect your channel and choose who will keep its secrets.
+          </p>
+        </div>
+        <div id="feedback" role="status" aria-live="polite"></div>
+        <section
+          id="warnings"
+          class="warnings"
+          aria-live="polite"
+          aria-label="Connection warnings"
+        ></section>
+        <section class="accounts" aria-label="Twitch accounts">
+          <article class="account-card">
+            <div class="card-top">
+              <span class="card-number">01</span
+              ><span id="streamer-status" class="badge">LOADING</span>
+            </div>
+            <h2>Your channel</h2>
+            <p class="card-description">
+              The streamer account that owns your capsules and rewards your
+              Prophets.
+            </p>
+            <div class="identity">
+              <span class="avatar" aria-hidden="true">S</span>
+              <div>
+                <strong id="streamer-name">Not connected</strong>
+                <p id="streamer-login" class="muted">Connect to get started</p>
+              </div>
+            </div>
+            <p id="streamer-error" class="account-error"></p>
+            <p id="streamer-expiry" class="metadata"></p>
+            <details>
+              <summary>Permissions &amp; token status</summary>
+              <div id="streamer-scopes" class="scopes"></div>
+              <p id="streamer-validation" class="metadata"></p>
+            </details>
+            <div class="actions">
+              <button data-connect="streamer" class="primary" disabled>
+                Connect streamer account &#8599;</button
+              ><button data-disconnect="streamer" class="quiet" hidden>
+                Disconnect locally
+              </button>
+            </div>
+          </article>
+          <article class="account-card">
+            <div class="card-top">
+              <span class="card-number">02</span
+              ><span id="bot-status" class="badge">OPTIONAL</span>
+            </div>
+            <h2>Your capsule keeper</h2>
+            <p class="card-description">
+              A separate bot can seal messages and speak in chat. Or let your
+              streamer account do both.
+            </p>
+            <div class="identity">
+              <span class="avatar bot" aria-hidden="true">B</span>
+              <div>
+                <strong id="bot-name">Single-account mode</strong>
+                <p id="bot-login" class="muted">Uses your streamer account</p>
+              </div>
+            </div>
+            <p id="bot-error" class="account-error"></p>
+            <p id="bot-expiry" class="metadata"></p>
+            <details>
+              <summary>Permissions &amp; token status</summary>
+              <div id="bot-scopes" class="scopes"></div>
+              <p id="bot-validation" class="metadata"></p>
+            </details>
+            <div class="actions">
+              <button data-connect="bot" class="secondary" disabled>
+                Connect bot account &#8599;</button
+              ><button data-disconnect="bot" class="quiet" hidden>
+                Disconnect locally
+              </button>
+            </div>
+          </article>
+        </section>
+        <section class="channel-strip" aria-label="Channel checks">
+          <div>
+            <p class="eyebrow">STREAM</p>
+            <strong id="live-status">Waiting for channel</strong>
+          </div>
+          <div>
+            <p class="eyebrow">CHAT MODERATION</p>
+            <strong id="mod-status">Not checked</strong>
+          </div>
+          <div>
+            <p class="eyebrow">EVENTSUB</p>
+            <strong>Not connected yet</strong>
+          </div>
+          <button id="refresh" class="secondary">Recheck connection</button>
+        </section>
+        <p id="checked-at" class="metadata"></p>
+        <section class="setup-note">
+          <span class="note-icon" aria-hidden="true">i</span>
+          <div>
+            <h2>One account is enough to begin.</h2>
+            <p>
+              For a separate bot, sign in to that account on Twitch before
+              authorizing it. Recheck after making the bot a moderator. Chat
+              listening will be enabled in the next build.
+            </p>
+          </div>
+        </section>
+      </main>
+      <footer>
+        <span>SEALED TODAY. REVEALED WHEN IT MATTERS.</span
+        ><span>LOCAL DASHBOARD &middot; KEEP THIS LINK PRIVATE</span>
+      </footer>
+    </div>
+  </body>
+</html>

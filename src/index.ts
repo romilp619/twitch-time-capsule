@@ -15,7 +15,7 @@ async function main(): Promise<void> {
   try {
     await app.listen({ host: config.host, port: config.port });
     console.log(
-      `Time Capsule - Phase 1\nHealth: ${config.baseUrl}/health\nSQLite: ${config.databasePath}`,
+      `Time Capsule - Phase 2\nHealth: ${config.baseUrl}/health\nDashboard: ${config.baseUrl}/dashboard?key=${config.adminKey}\nSQLite: ${config.databasePath}`,
     );
   } catch (error) {
     await app.close();
@@ -28,7 +28,8 @@ main().catch((error: unknown) => {
   const message =
     error instanceof Error &&
     (error.message.startsWith('Invalid configuration') ||
-      error.message.startsWith('Cannot read data/keys.json'))
+      error.message.startsWith('Cannot read data/keys.json') ||
+      error.message.startsWith('Cannot read data/tokens.json'))
       ? error.message
       : 'Unable to start Time Capsule. Check the port, storage permissions, and installed dependencies.';
   console.error(message);

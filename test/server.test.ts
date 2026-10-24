@@ -14,7 +14,7 @@ function server() {
   cleanup.push(() => app.close());
   return app;
 }
-describe('Phase 1 HTTP server', () => {
+describe('HTTP server', () => {
   it('serves database-backed health without exposing secrets', async () => {
     const app = server();
     const response = await app.inject({ method: 'GET', url: '/health' });
@@ -22,7 +22,7 @@ describe('Phase 1 HTTP server', () => {
     expect(response.json()).toEqual({
       status: 'ok',
       app: 'time-capsule',
-      phase: 1,
+      phase: 2,
       database: 'ok',
     });
   });
@@ -33,6 +33,6 @@ describe('Phase 1 HTTP server', () => {
     expect(root.headers.location).toBe('/health');
     expect(
       (await app.inject({ method: 'GET', url: '/dashboard' })).statusCode,
-    ).toBe(404);
+    ).toBe(401);
   });
 });

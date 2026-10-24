@@ -71,3 +71,34 @@ describe('configuration', () => {
     ).toThrow('must differ');
   });
 });
+
+describe('OAuth callback configuration', () => {
+  const credentials = {
+    TWITCH_CLIENT_ID: 'client',
+    TWITCH_CLIENT_SECRET: 'local-secret',
+  };
+  it('rejects a callback origin that differs from the dashboard origin', () => {
+    expect(() =>
+      parseEnvironment({ ...credentials, BASE_URL: 'http://localhost:3001' }),
+    ).toThrow('TWITCH_REDIRECT_URI');
+  });
+  it.each(['BASE_URL', 'TWITCH_REDIRECT_URI'])(
+    'reports invalid %s as a safe configuration error',
+    (field) => {
+      expect(() =>
+        parseEnvironment({ ...credentials, [field]: 'invalid-url' }),
+      ).toThrow('Invalid configuration');
+    },
+  );
+  it('rejects credentials embedded in the dashboard origin without echoing them', () => {
+    try {
+      parseEnvironment({
+        BASE_URL: 'http://user:never-print-password@localhost:3000',
+      });
+      throw new Error('Expected config rejection');
+    } catch (error) {
+      expect(String(error)).toContain('Invalid configuration');
+      expect(String(error)).not.toContain('never-print-password');
+    }
+  });
+});

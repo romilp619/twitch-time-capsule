@@ -12,6 +12,20 @@ export default tseslint.config(
       'coverage/**',
     ],
   },
+  {
+    files: ['public/**/*.js'],
+    languageOptions: {
+      globals: {
+        document: 'readonly',
+        location: 'readonly',
+        history: 'readonly',
+        URL: 'readonly',
+        URLSearchParams: 'readonly',
+        fetch: 'readonly',
+        setInterval: 'readonly',
+      },
+    },
+  },
   js.configs.recommended,
   ...tseslint.configs.recommended,
 );

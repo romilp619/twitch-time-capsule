@@ -31,7 +31,24 @@ const envSchema = z
     PORT: z.coerce.number().int().min(1).max(65535).default(3000),
     BASE_URL: z
       .url()
-      .refine((value) => ['http:', 'https:'].includes(new URL(value).protocol))
+      .refine(
+        (value) => {
+          if (!URL.canParse(value)) return false;
+          const url = new URL(value);
+          return (
+            ['http:', 'https:'].includes(url.protocol) &&
+            url.pathname === '/' &&
+            !url.search &&
+            !url.hash &&
+            !url.username &&
+            !url.password
+          );
+        },
+        {
+          message:
+            'BASE_URL must be an HTTP(S) origin without credentials, path, query, or fragment',
+        },
+      )
       .optional(),
     DATA_DIR: z.string().trim().min(1).default('data'),
     LOG_LEVEL: z
@@ -50,11 +67,38 @@ const envSchema = z
       .default(60),
   })
   .superRefine((env, context) => {
+    if (
+      env.TWITCH_CLIENT_ID &&
+      env.TWITCH_CLIENT_SECRET &&
+      URL.canParse(env.BASE_URL ?? 'http://localhost:' + env.PORT) &&
+      URL.canParse(env.TWITCH_REDIRECT_URI)
+    ) {
+      const origin = new URL(env.BASE_URL ?? 'http://localhost:' + env.PORT)
+        .origin;
+      const callback = new URL(env.TWITCH_REDIRECT_URI);
+      if (
+        callback.origin !== origin ||
+        callback.pathname !== '/auth/callback' ||
+        callback.username ||
+        callback.password ||
+        callback.search ||
+        callback.hash ||
+        !['http:', 'https:'].includes(callback.protocol)
+      ) {
+        context.addIssue({
+          code: 'custom',
+          path: ['TWITCH_REDIRECT_URI'],
+          message:
+            'Use BASE_URL + /auth/callback and register the exact same URL on Twitch',
+        });
+      }
+    }
     if (Boolean(env.TWITCH_CLIENT_ID) !== Boolean(env.TWITCH_CLIENT_SECRET)) {
       context.addIssue({
         code: 'custom',
         path: ['TWITCH_CLIENT_ID', 'TWITCH_CLIENT_SECRET'],
-        message: 'Set both Twitch credentials, or leave both empty for Phase 1',
+        message:
+          'Set both Twitch credentials, or leave both empty to configure later',
       });
     }
   });
