@@ -1,5 +1,6 @@
 import { TwitchAuth, roles } from './auth.js';
 import { HelixClient } from './helix.js';
+import type { TwitchRuntime } from './runtime.js';
 import { safeMessage } from './http.js';
 export class TwitchConnection {
   private timer: ReturnType<typeof setInterval> | undefined;
@@ -18,6 +19,7 @@ export class TwitchConnection {
   constructor(
     readonly auth: TwitchAuth,
     readonly helix: HelixClient,
+    private readonly events?: TwitchRuntime,
   ) {}
   snapshot() {
     const streamer = this.auth.publicAccount('streamer');
@@ -37,7 +39,13 @@ export class TwitchConnection {
         ...this.warnings,
         ...(this.callbackNotice ? [this.callbackNotice] : []),
       ],
-      eventsub: { status: 'Phase 3', subscriptions: [], lastKeepalive: null },
+      eventsub: this.events?.snapshot() ?? {
+        status: 'disconnected',
+        connections: [],
+        warnings: [],
+        subscriptions: [],
+        lastKeepalive: null,
+      },
     };
   }
   notice(message: string | null): void {
@@ -52,9 +60,11 @@ export class TwitchConnection {
   }
   refresh(): Promise<void> {
     if (this.pending) return this.pending;
-    const operation = this.performRefresh().catch((error: unknown) => {
-      this.warnings = [safeMessage(error)];
-    });
+    const operation = this.performRefresh()
+      .then(() => this.events?.sync())
+      .catch((error: unknown) => {
+        this.warnings = [safeMessage(error)];
+      });
     this.pending = operation;
     void operation.finally(() => {
       if (this.pending === operation) this.pending = undefined;
@@ -121,9 +131,13 @@ export class TwitchConnection {
     }
     this.checkedAt = new Date().toISOString();
   }
+  setLive(live: boolean): void {
+    this.live = live;
+  }
   async close(): Promise<void> {
     if (this.timer) clearInterval(this.timer);
     this.auth.close();
+    await this.events?.close();
     await this.pending;
   }
 }

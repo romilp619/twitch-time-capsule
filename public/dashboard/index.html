@@ -106,19 +106,34 @@
           </div>
           <div>
             <p class="eyebrow">EVENTSUB</p>
-            <strong>Not connected yet</strong>
+            <strong id="eventsub-status">Connecting...</strong>
           </div>
           <button id="refresh" class="secondary">Recheck connection</button>
         </section>
         <p id="checked-at" class="metadata"></p>
+        <p id="dashboard-updates" class="metadata" role="status">
+          Connecting live dashboard updates...
+        </p>
+        <details class="eventsub-details">
+          <summary>Event subscriptions &amp; keepalive</summary>
+          <div id="subscription-list"></div>
+        </details>
+        <section class="log-section" aria-labelledby="log-title">
+          <div class="log-header">
+            <h2 id="log-title">Channel activity</h2>
+            <span class="metadata">Latest 100 events</span>
+          </div>
+          <ol id="events-log" aria-label="Recent Twitch events"></ol>
+        </section>
         <section class="setup-note">
           <span class="note-icon" aria-hidden="true">i</span>
           <div>
             <h2>One account is enough to begin.</h2>
             <p>
               For a separate bot, sign in to that account on Twitch before
-              authorizing it. Recheck after making the bot a moderator. Chat
-              listening will be enabled in the next build.
+              authorizing it. Recheck after making the bot a moderator. Chat is
+              listening. Send !capsule from a viewer account to test the reply.
+              Your capsule keeper ignores commands from its own account.
             </p>
           </div>
         </section>

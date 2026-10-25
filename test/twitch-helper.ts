@@ -28,6 +28,22 @@ export function json(
 }
 export class FakeTwitch {
   isMod = false;
+  dropMessages = false;
+  sentMessages: Array<{
+    broadcaster_id: string;
+    sender_id: string;
+    message: string;
+  }> = [];
+  subscriptions: Array<{
+    role: string;
+    body: {
+      type: string;
+      version: string;
+      condition: Record<string, string>;
+      transport: { method: string; session_id: string };
+    };
+  }> = [];
+
   live = false;
   invalidAccess = new Set<string>();
   refreshStatus = 200;
@@ -80,6 +96,44 @@ export class FakeTwitch {
         login: role,
         scopes: this.missingScope ? [] : scopes[role],
         expires_in: this.expiresIn,
+      });
+    }
+    if (url.pathname === '/helix/eventsub/subscriptions') {
+      const body = JSON.parse(String(init?.body)) as {
+        type: string;
+        version: string;
+        condition: Record<string, string>;
+        transport: { method: string; session_id: string };
+      };
+      this.subscriptions.push({ role, body });
+      return json(
+        {
+          data: [
+            {
+              ...body,
+              id: 'subscription-' + this.subscriptions.length,
+              status: 'enabled',
+            },
+          ],
+        },
+        202,
+      );
+    }
+    if (url.pathname === '/helix/chat/messages') {
+      const body = JSON.parse(String(init?.body)) as {
+        broadcaster_id: string;
+        sender_id: string;
+        message: string;
+      };
+      if (body.sender_id !== userId) return json({}, 401);
+      this.sentMessages.push(body);
+      return json({
+        data: [
+          {
+            message_id: 'reply-' + this.sentMessages.length,
+            is_sent: !this.dropMessages,
+          },
+        ],
       });
     }
     if (url.pathname === '/helix/users')

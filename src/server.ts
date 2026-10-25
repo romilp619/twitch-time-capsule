@@ -1,3 +1,7 @@
+import websocket from '@fastify/websocket';
+import type WebSocket from 'ws';
+import { EventLog } from './db/events.js';
+import { TwitchRuntime, type RuntimeOptions } from './twitch/runtime.js';
 import Fastify, { type FastifyReply, type FastifyRequest } from 'fastify';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
@@ -20,14 +24,58 @@ function cookie(request: FastifyRequest, name: string): string {
 }
 export function buildServer(
   config: AppConfig,
-  dependencies: { fetcher?: TwitchFetch; now?: () => number } = {},
+  dependencies: {
+    fetcher?: TwitchFetch;
+    now?: () => number;
+    eventsubEnabled?: boolean;
+    eventsubOptions?: RuntimeOptions;
+  } = {},
 ) {
   const auth = new TwitchAuth(config, dependencies.fetcher, dependencies.now);
-  const connection = new TwitchConnection(
-    auth,
-    new HelixClient(auth, dependencies.fetcher),
-  );
   const db = openDatabase(config.databasePath);
+  let closing = false;
+  let queued = false;
+  const peers = new Set<WebSocket>();
+  const log = new EventLog(db, broadcast, () => [
+    config.adminKey,
+    config.overlayKey,
+    config.twitchClientSecret ?? '',
+    ...roles.flatMap((role) => {
+      const token = auth.store.get(role);
+      return token ? [token.accessToken, token.refreshToken] : [];
+    }),
+  ]);
+  const helix = new HelixClient(auth, dependencies.fetcher);
+  const runtime =
+    dependencies.eventsubEnabled === false
+      ? undefined
+      : new TwitchRuntime(
+          auth,
+          helix,
+          log,
+          broadcast,
+          (live) => connection.setLive(live),
+          dependencies.eventsubOptions,
+        );
+  const connection = new TwitchConnection(auth, helix, runtime);
+  const snapshot = () => ({
+    type: 'snapshot',
+    connection: connection.snapshot(),
+    events: log.latest(),
+  });
+  function broadcast(): void {
+    if (closing || queued) return;
+    queued = true;
+    queueMicrotask(() => {
+      queued = false;
+      if (closing || peers.size === 0) return;
+      const payload = JSON.stringify(snapshot());
+      for (const socket of peers) {
+        if (socket.bufferedAmount > 256 * 1024) socket.terminate();
+        else if (socket.readyState === 1) socket.send(payload);
+      }
+    });
+  }
   const app = Fastify({
     bodyLimit: 32 * 1024,
     logger:
@@ -51,6 +99,8 @@ export function buildServer(
   });
   app.addHook('onReady', () => connection.start());
   app.addHook('onClose', async () => {
+    closing = true;
+    for (const socket of peers) socket.terminate();
     await connection.close();
     db.close();
   });
@@ -61,7 +111,7 @@ export function buildServer(
     reply.header('X-Frame-Options', 'DENY');
     reply.header(
       'Content-Security-Policy',
-      "default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'",
+      `default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self' ${new URL(config.baseUrl).origin.replace(/^http/, 'ws')}; base-uri 'none'; form-action 'none'; frame-ancestors 'none'`,
     );
   });
   app.setNotFoundHandler((_request, reply) => {
@@ -104,9 +154,38 @@ export function buildServer(
         .send({ error: 'Open the dashboard using the configured BASE_URL.' });
   };
   const roleBody = z.object({ role: z.enum(roles) }).strict();
+  app.register(websocket, { options: { maxPayload: 1024 } });
+  app.register(async (instance) => {
+    instance.get(
+      '/ws/dashboard',
+      {
+        websocket: true,
+        preValidation: async (request, reply) => {
+          const query = z
+            .object({ key: z.string().max(1024) })
+            .safeParse(request.query);
+          if (!query.success || !constantEqual(query.data.key, config.adminKey))
+            return reply
+              .code(401)
+              .send({ error: 'A valid dashboard key is required.' });
+          if (request.headers.origin !== new URL(config.baseUrl).origin)
+            return reply
+              .code(403)
+              .send({ error: 'Dashboard origin is not allowed.' });
+        },
+      },
+      (socket) => {
+        peers.add(socket);
+        socket.on('close', () => peers.delete(socket));
+        socket.on('error', () => peers.delete(socket));
+        socket.send(JSON.stringify(snapshot()));
+      },
+    );
+  });
+
   app.get('/health', () => {
     db.prepare('SELECT 1').get();
-    return { status: 'ok', app: 'time-capsule', phase: 2, database: 'ok' };
+    return { status: 'ok', app: 'time-capsule', phase: 3, database: 'ok' };
   });
   app.get('/', async (_request, reply) => reply.redirect('/health'));
   app.get('/dashboard', async (request, reply) => {
@@ -151,11 +230,13 @@ export function buildServer(
   app.get('/api/connection', { preHandler: requireAdmin }, () =>
     connection.snapshot(),
   );
+  app.get('/api/events', { preHandler: requireAdmin }, () => log.latest());
   app.post(
     '/api/connection/refresh',
     { preHandler: requireAdmin },
     async () => {
       await connection.refresh();
+      broadcast();
       return connection.snapshot();
     },
   );
@@ -190,6 +271,7 @@ export function buildServer(
       auth.disconnect(body.data.role);
       connection.notice(null);
       await connection.refresh();
+      broadcast();
       return connection.snapshot();
     },
   );

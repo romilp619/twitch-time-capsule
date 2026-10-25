@@ -4,7 +4,7 @@ Time Capsule lets Twitch viewers seal free-text predictions and messages, then r
 
 ## Build status
 
-**Phase 2: Twitch authentication and connection dashboard.** The app supports streamer and optional bot OAuth, private token persistence and rotation, startup/hourly validation, live status, and the bot moderator check. Chat listening, capsules, ceremony, VIP rewards, and the story demo arrive in Phases 3-8. The original specification is in [CODEX_PROMPT.md](./CODEX_PROMPT.md).
+**Phase 3: EventSub and chat.** The app supports Twitch OAuth, private token lifecycle, one EventSub connection per token user, live dashboard updates, a private channel activity log, and a rate-limited !capsule reply. Capsules, seal deletion, triggers, ceremony, and rewards arrive in later phases. The original specification is in [CODEX_PROMPT.md](./CODEX_PROMPT.md).
 
 ## Quick start
 
@@ -19,7 +19,7 @@ npm run dev
 Open [http://localhost:3000/health](http://localhost:3000/health). Expected JSON:
 
 ```json
-{ "status": "ok", "app": "time-capsule", "phase": 2, "database": "ok" }
+{ "status": "ok", "app": "time-capsule", "phase": 3, "database": "ok" }
 ```
 
 The health server and dashboard start without Twitch credentials and show a setup warning. A fresh start creates data/time-capsule.db and two different random keys in data/keys.json. Open the private dashboard URL printed at startup. The overlay arrives in Phase 6.
@@ -65,7 +65,7 @@ SQLite uses foreign keys, WAL, a five-second busy timeout, and numbered migratio
 
 ```mermaid
 flowchart LR
-  Twitch["Twitch OAuth + Helix + EventSub (planned)"] --> Server["Fastify / TypeScript"]
+  Twitch["Twitch OAuth + Helix + EventSub"] --> Server["Fastify / TypeScript"]
   Server --> DB["SQLite + migrations"]
   Server --> Dashboard["Dashboard + mod queue (planned)"]
   Server --> Overlay["OBS overlay via WebSocket (planned)"]
@@ -77,9 +77,9 @@ src/config.ts loads settings and private keys. src/server.ts builds a testable s
 
 ## Dependencies
 
-Runtime dependencies are Fastify (HTTP server and request/response validation), better-sqlite3 (local transactional SQLite), dotenv (.env loading), and Zod (typed startup validation). WebSocket libraries will be added when implemented, in Phase 3.
+Runtime dependencies are Fastify (HTTP server and request/response validation), better-sqlite3 (local transactional SQLite), dotenv (.env loading), and Zod (typed startup validation). Phase 3 adds ws (the Twitch EventSub client) and @fastify/websocket (authenticated live dashboard snapshots).
 
-Development dependencies are TypeScript (strict compiler), tsx (development runner), Vitest (tests), ESLint with typescript-eslint and @eslint/js (lint), Prettier (format checks), and Node/SQLite type definitions. No frontend framework or AI service is included.
+Development dependencies are TypeScript (strict compiler), tsx (development runner), Vitest (tests), ESLint with typescript-eslint and @eslint/js (lint), Prettier (format checks), and Node/SQLite/WebSocket type definitions. No frontend framework or AI service is included.
 
 ## Connect real Twitch accounts (Phase 2)
 
@@ -115,7 +115,7 @@ If changing the port/origin, update PORT, BASE_URL, TWITCH_REDIRECT_URI, and the
 
 Streamer scopes: channel:manage:vips, moderator:read:followers, moderation:read, user:read:chat, user:write:chat, moderator:manage:chat_messages. Bot scopes: user:read:chat, user:write:chat, moderator:manage:chat_messages.
 
-**Specification correction:** the streamer also requests moderator:manage:chat_messages so single-account mode can delete viewer seals in Phase 4. The original scope list omitted it, but [Twitch requires it for Delete Chat Messages](https://dev.twitch.tv/docs/api/reference/#delete-chat-messages). No chat or VIP actions occur in Phase 2.
+**Specification correction:** the streamer also requests moderator:manage:chat_messages so single-account mode can delete viewer seals in Phase 4. The original scope list omitted it, but [Twitch requires it for Delete Chat Messages](https://dev.twitch.tv/docs/api/reference/#delete-chat-messages). Phase 3 adds only the !capsule chat reply; no VIP actions occur yet.
 
 Tokens are stored atomically in gitignored data/tokens.json with owner-only permissions on systems that support POSIX modes. Refresh operations are shared per role so concurrent 401s do not rotate the same refresh token repeatedly. Helix sends both Client-Id and Bearer headers, honors Ratelimit-Reset with at most two retries, and surfaces waits beyond 60 seconds for manual retry. Requests have a 10-second timeout. No raw Twitch error bodies, authorization codes, keys, or tokens are written to request logs.
 
@@ -123,9 +123,43 @@ The dashboard document requires its query key. API access requires the x-admin-k
 
 Official references: [Authorization code flow](https://dev.twitch.tv/docs/authentication/getting-tokens-oauth/#authorization-code-grant-flow), [Token refresh](https://dev.twitch.tv/docs/authentication/refresh-tokens/), [Required token validation](https://dev.twitch.tv/docs/authentication/validate-tokens/), [Helix reference](https://dev.twitch.tv/docs/api/reference/), [Rate limits](https://dev.twitch.tv/docs/api/guide/#twitch-rate-limits).
 
+## EventSub and chat (Phase 3)
+
+The app automatically connects after startup token validation or account connection. A streamer-only setup uses one WebSocket with all five subscriptions. With a separate bot, the streamer connection owns stream/category/follow subscriptions and the bot connection owns chat. Every subscription is created using the token belonging to that connection's user.
+
+| EventSub type        | Version | Condition                                                  |
+| -------------------- | ------- | ---------------------------------------------------------- |
+| stream.online        | 1       | broadcaster_user_id                                        |
+| stream.offline       | 1       | broadcaster_user_id                                        |
+| channel.update       | 2       | broadcaster_user_id                                        |
+| channel.follow       | 2       | broadcaster_user_id and moderator_user_id = broadcaster ID |
+| channel.chat.message | 1       | broadcaster_user_id and user_id = bot or streamer ID       |
+
+After session_welcome, subscriptions are requested concurrently to meet Twitch's default ten-second initial subscription window. Notifications and keepalives reset the watchdog. Its initial window is armed again after subscription setup, with a bounded delivery margin (10% of the interval, at most one second) so a keepalive at the interval boundary does not cause reconnect churn. An ordinary disconnect reconnects with bounded backoff and resubscribes. For session_reconnect, the old socket stays open until the new welcome; subscriptions are preserved and are not recreated. Reconnect URLs are accepted only on the configured Twitch WebSocket origin. Revocation and subscription failures appear in dashboard warnings and the activity log; use Recheck connection after fixing permissions.
+
+EventSub delivery IDs are deduplicated across socket handovers and ordinary reconnects. Chat message IDs are deduplicated separately. Both in-memory caches retain at most 5000 IDs for up to ten minutes. Notifications must match an expected subscription type, version, and condition. No events lost during an ordinary disconnect can be replayed by Twitch.
+
+The dashboard connects to /ws/dashboard using its private key and configured browser origin. It restores a fresh snapshot after reconnecting, with HTTP polling as fallback. Open Event subscriptions & keepalive to inspect each account's subscriptions and last keepalive. The Channel activity section shows the newest 100 events; SQLite retains at most 1000 log entries. Logs redact known credentials and omit !seal contents. Normal chat text is stored in this private debug log. Capsules and sealed-message storage are not implemented yet.
+
+### Phase 3 acceptance check
+
+1. Run npm run dev and refresh the private dashboard URL printed at startup.
+2. With the connected streamer, EVENTSUB should become Connected. Expand Event subscriptions & keepalive: single-account mode should show five enabled subscriptions and a keepalive timestamp shortly afterward.
+3. Send a normal message in the channel's Twitch chat. It should appear in Channel activity without refreshing the page.
+4. **For single-account mode, send !capsule from a different viewer account.** The app ignores commands from its own sender account to prevent loops. With a separate bot, the streamer can send the command. Expected reply: No capsule is open for sealing right now.
+5. Repeat !capsule within 30 seconds: no extra reply. Try again after 30 seconds: a new reply is sent.
+6. Restart the server and refresh the dashboard: account authorization is restored, subscriptions reconnect, and recent log entries remain.
+7. Run npm test, npm run typecheck, npm run lint, and npm run build. EventSub tests use a real local fake WebSocket server and fake Helix HTTP responses. No Twitch credentials are used by tests.
+
+Chat uses POST /helix/chat/messages with broadcaster_id, sender_id, and message, authenticated as the effective bot user. Messages are limited to 500 Unicode code points and sent through a queue with at least 1.5 seconds between attempts. !capsule has a channel-wide 30-second cooldown. Failed or dropped sends are reported visibly; account changes cancel queued replies. Replies made with user tokens follow Twitch's shared-chat delivery behavior.
+
+Official references: [WebSocket lifecycle and limits](https://dev.twitch.tv/docs/eventsub/handling-websocket-events/), [Subscription types](https://dev.twitch.tv/docs/eventsub/eventsub-subscription-types/), [Create EventSub Subscription](https://dev.twitch.tv/docs/api/reference/#create-eventsub-subscription), [Send Chat Message](https://dev.twitch.tv/docs/api/reference/#send-chat-message).
+
+The exact Twitch CLI mock-server commands will be checked and documented in Phase 8, as specified in the build plan. The automated Phase 3 suite exercises the real ws client locally without the CLI.
+
 ## Next phase
 
-Phase 3 adds EventSub connections, subscription setup, keepalive/reconnect handling, deduplication, chat logging, and the !capsule reply. The EventSub label in the dashboard is a roadmap marker until then.
+Phase 4 adds capsule creation, !seal validation/deletion, transactional numbering, reply batching, and the public pre-opening page.
 
 ## How I used Codex
 

@@ -14,6 +14,7 @@ const moderatorsSchema = z.object({
 const streamsSchema = z.object({ data: z.array(z.object({ id: z.string() })) });
 export type TwitchUser = z.infer<typeof userSchema>;
 interface RequestOptions {
+  expectedUserId?: string;
   method?: 'GET' | 'POST' | 'DELETE' | 'PATCH';
   query?: Record<string, string>;
   body?: unknown;
@@ -42,6 +43,15 @@ export class HelixClient {
     let refreshed = false;
     let retries = 0;
     while (true) {
+      if (
+        options.expectedUserId &&
+        this.auth.store.get(credential.role)?.userId !== options.expectedUserId
+      )
+        throw new TwitchError(
+          409,
+          'The connected Twitch account changed. Recheck the dashboard.',
+        );
+
       const response = await safeFetch(
         this.fetcher,
         url,

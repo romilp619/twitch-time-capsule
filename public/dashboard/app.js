@@ -1,3 +1,7 @@
+let dashboardSocket;
+let retryTimer;
+let retryAttempt = 0;
+let dashboardClosed = false;
 const key = new URLSearchParams(location.search).get('key') || '';
 const feedback = document.getElementById('feedback');
 let busy = false;
@@ -38,10 +42,15 @@ async function api(path, method = 'GET', body) {
   return data;
 }
 function render(state) {
+  renderEventSub(state.eventsub);
   currentState = state;
   const warnings = document.getElementById('warnings');
   warnings.replaceChildren();
-  for (const warning of state.warnings) banner(warnings, warning);
+  for (const warning of [
+    ...state.warnings,
+    ...(state.eventsub?.warnings ?? []),
+  ])
+    banner(warnings, warning);
   if (state.moderator.state === 'no' || state.moderator.state === 'error')
     banner(warnings, state.moderator.message, 'danger');
   for (const role of ['streamer', 'bot']) {
@@ -140,9 +149,14 @@ document.getElementById('refresh').addEventListener('click', () => {
   });
 });
 async function poll() {
-  if (busy) return;
+  if (busy || dashboardSocket?.readyState === 1) return;
   try {
-    render(await api('/api/connection'));
+    const [state, events] = await Promise.all([
+      api('/api/connection'),
+      api('/api/events'),
+    ]);
+    render(state);
+    renderEvents(events);
   } catch (error) {
     feedback.replaceChildren();
     banner(
@@ -156,3 +170,122 @@ void poll();
 setInterval(() => {
   void poll();
 }, 15_000);
+
+function renderEventSub(eventsub) {
+  document.getElementById('eventsub-status').textContent =
+    eventsub?.status === 'connected'
+      ? 'Connected'
+      : eventsub?.status === 'degraded'
+        ? 'Needs attention'
+        : eventsub?.status === 'connecting'
+          ? 'Connecting...'
+          : 'Not connected';
+  const list = document.getElementById('subscription-list');
+  list.replaceChildren();
+  for (const connection of eventsub?.connections ?? []) {
+    const heading = document.createElement('p');
+    heading.className = 'metadata';
+    heading.textContent =
+      connection.role +
+      ' connection: ' +
+      connection.status +
+      ' | Last keepalive: ' +
+      (connection.lastKeepalive
+        ? new Date(connection.lastKeepalive).toLocaleTimeString()
+        : 'waiting');
+    list.append(heading);
+    for (const subscription of connection.subscriptions) {
+      const item = document.createElement('p');
+      item.className = 'subscription-row ' + subscription.status;
+      item.textContent =
+        subscription.type +
+        ' v' +
+        subscription.version +
+        ' - ' +
+        subscription.status;
+      list.append(item);
+    }
+  }
+  if (!eventsub?.connections?.length) {
+    const item = document.createElement('p');
+    item.className = 'metadata';
+    item.textContent = 'Connect a streamer account to start receiving events.';
+    list.append(item);
+  }
+}
+function renderEvents(events) {
+  const list = document.getElementById('events-log');
+  list.replaceChildren();
+  for (const event of events) {
+    const row = document.createElement('li');
+    const heading = document.createElement('div');
+    heading.className = 'event-heading';
+    const type = document.createElement('strong');
+    type.textContent = event.type;
+    const at = document.createElement('time');
+    at.textContent = new Date(event.at).toLocaleTimeString();
+    heading.append(type, at);
+    const body = document.createElement('p');
+    body.textContent = JSON.stringify(event.payload);
+    row.append(heading, body);
+    list.append(row);
+  }
+  if (!events.length) {
+    const row = document.createElement('li');
+    row.textContent =
+      'Waiting for Twitch events. New chat messages will appear here.';
+    list.append(row);
+  }
+}
+function connectDashboard() {
+  if (dashboardClosed) return;
+  const url = new URL('/ws/dashboard', location.href);
+  url.protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
+  url.searchParams.set('key', key);
+  const socket = new WebSocket(url);
+  dashboardSocket = socket;
+  socket.onopen = () => {
+    retryAttempt = 0;
+    document.getElementById('dashboard-updates').textContent =
+      'Live dashboard updates connected';
+    if (!notice) feedback.replaceChildren();
+  };
+  socket.onmessage = (event) => {
+    try {
+      const packet = JSON.parse(event.data);
+      if (
+        packet.type !== 'snapshot' ||
+        !packet.connection ||
+        !Array.isArray(packet.events)
+      )
+        return;
+      render(packet.connection);
+      renderEvents(packet.events);
+    } catch {
+      document.getElementById('dashboard-updates').textContent =
+        'Could not read an update. Reconnecting...';
+      socket.close();
+    }
+  };
+  socket.onerror = () => {
+    document.getElementById('dashboard-updates').textContent =
+      'Dashboard connection interrupted';
+  };
+  socket.onclose = () => {
+    if (dashboardClosed || dashboardSocket !== socket) return;
+    document.getElementById('dashboard-updates').textContent =
+      'Reconnecting dashboard updates...';
+    retryTimer = setTimeout(
+      connectDashboard,
+      Math.min(30000, 1000 * 2 ** Math.min(retryAttempt++, 5)),
+    );
+  };
+}
+if (typeof WebSocket === 'function') {
+  connectDashboard();
+  addEventListener('pagehide', () => {
+    dashboardClosed = true;
+    clearTimeout(retryTimer);
+    dashboardSocket?.close();
+  });
+}

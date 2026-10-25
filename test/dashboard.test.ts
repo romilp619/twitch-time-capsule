@@ -14,8 +14,8 @@ class Element {
   set innerHTML(_value: string) {
     throw new Error('Unsafe HTML rendering');
   }
-  append(child: Element) {
-    this.children.push(child);
+  append(...children: Element[]) {
+    this.children.push(...children);
   }
   replaceChildren() {
     this.children = [];
@@ -54,24 +54,42 @@ describe('Dashboard rendering', () => {
       resolve(projectRoot, 'public/dashboard/app.js'),
       'utf8',
     );
-    runInNewContext(script + '\nrender(' + JSON.stringify(state) + ');', {
-      document: {
-        getElementById: element,
-        createElement: () => new Element(),
-        querySelector: element,
-        querySelectorAll: () => [],
+    runInNewContext(
+      script +
+        '\nrender(' +
+        JSON.stringify(state) +
+        ');\nrenderEvents(' +
+        JSON.stringify([
+          {
+            id: 1,
+            at: new Date().toISOString(),
+            type: 'chat.received',
+            payload: { text: attack },
+          },
+        ]) +
+        ');',
+      {
+        document: {
+          getElementById: element,
+          createElement: () => new Element(),
+          querySelector: element,
+          querySelectorAll: () => [],
+        },
+        location: {
+          search: '?key=test',
+          href: 'http://localhost:3000/dashboard?key=test',
+        },
+        URL,
+        URLSearchParams,
+        setInterval: () => 0,
+        // Keep the initial background poll pending; render is invoked explicitly above.
+        fetch: () => new Promise(() => {}),
       },
-      location: {
-        search: '?key=test',
-        href: 'http://localhost:3000/dashboard?key=test',
-      },
-      URL,
-      URLSearchParams,
-      setInterval: () => 0,
-      // Keep the initial background poll pending; render is invoked explicitly above.
-      fetch: () => new Promise(() => {}),
-    });
+    );
     expect(elements.get('streamer-name')?.textContent).toBe(attack);
+    expect(
+      elements.get('events-log')?.children[0]?.children[1]?.textContent,
+    ).toContain(attack);
     expect(elements.get('warnings')?.children[0]?.textContent).toBe(attack);
   });
 });

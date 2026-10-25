@@ -9,7 +9,10 @@ function fixture() {
   const project = twitchProject();
   cleanup.push(project.cleanup);
   const fake = new FakeTwitch();
-  const app = buildServer(project.config, { fetcher: fake.fetch });
+  const app = buildServer(project.config, {
+    fetcher: fake.fetch,
+    eventsubEnabled: false,
+  });
   cleanup.push(() => app.close());
   const headers = { 'x-admin-key': project.config.adminKey };
   return { ...project, fake, app, headers };
