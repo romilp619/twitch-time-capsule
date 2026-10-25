@@ -7,12 +7,14 @@ import type { EventLog } from '../db/events.js';
 import type { TwitchAuth } from '../twitch/auth.js';
 import type { HelixClient } from '../twitch/helix.js';
 import { CapsuleError } from './model.js';
+import type { TriggerScheduler } from './scheduler.js';
 import type { CapsuleStore } from './store.js';
 
 export function registerCapsuleRoutes(
   app: FastifyInstance,
   dependencies: {
     store: CapsuleStore;
+    triggers: TriggerScheduler;
     auth: TwitchAuth;
     helix: HelixClient;
     log: EventLog;
@@ -22,7 +24,7 @@ export function registerCapsuleRoutes(
     ) => Promise<unknown>;
   },
 ) {
-  const { store, auth, helix, log, requireAdmin } = dependencies;
+  const { store, triggers, auth, helix, log, requireAdmin } = dependencies;
   app.get('/api/capsules', { preHandler: requireAdmin }, () => ({
     capsules: store.list(),
   }));
@@ -51,7 +53,8 @@ export function registerCapsuleRoutes(
         title: capsule.title,
         triggerType: capsule.triggerType,
       });
-      return reply.code(201).send({ capsule });
+      triggers.tick();
+      return reply.code(201).send({ capsule: store.get(capsule.id) });
     },
   );
   app.post(
@@ -61,12 +64,15 @@ export function registerCapsuleRoutes(
       const parsed = z
         .object({
           id: z.coerce.number().int().positive().max(Number.MAX_SAFE_INTEGER),
-          action: z.enum(['lock', 'archive']),
+          action: z.enum(['lock', 'archive', 'open', 'postpone']),
         })
         .safeParse(request.params);
       if (!parsed.success)
         throw new CapsuleError(400, 'Choose a valid capsule and action.');
+      if (parsed.data.action === 'open' || parsed.data.action === 'postpone')
+        return { capsule: triggers.action(parsed.data.id, parsed.data.action) };
       const capsule = store.changeStatus(parsed.data.id, parsed.data.action);
+      triggers.tick();
       log.write(
         parsed.data.action === 'lock' ? 'capsule.locked' : 'capsule.archived',
         { capsuleId: capsule.id },
@@ -101,7 +107,13 @@ export function registerCapsuleRoutes(
   app.get('/api/public/capsules/:slug', (request) => {
     const capsule = store.publicView(slug(request.params));
     if (!capsule) throw new CapsuleError(404, 'Capsule not found.');
-    return capsule;
+    const facts = triggers.snapshot();
+    const source = store.bySlug(capsule.slug);
+    return {
+      ...capsule,
+      followers:
+        source?.channel.id === facts.channelId ? facts.followers : null,
+    };
   });
   app.get('/c/:slug', (request, reply) => {
     if (!store.publicView(slug(request.params)))

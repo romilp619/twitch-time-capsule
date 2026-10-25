@@ -30,6 +30,7 @@ export class CapsuleCommands {
     private readonly baseUrl: string,
     private readonly now: () => number = Date.now,
     batchWindowMs = 3000,
+    private readonly openCapsule?: (id: number) => Capsule,
   ) {
     this.batcher = new ReplyBatcher(
       sender,
@@ -170,7 +171,7 @@ export class CapsuleCommands {
       });
       return true;
     }
-    const command = /^!capsule\s+(lock|status)\s*$/iu
+    const command = /^!capsule\s+(lock|open|status)\s*$/iu
       .exec(event.message.text.trim())?.[1]
       ?.toLowerCase();
     if (!command) return false;
@@ -186,7 +187,32 @@ export class CapsuleCommands {
       );
       return true;
     }
-    if (command === 'lock') {
+    if (command === 'open') {
+      const capsule =
+        this.store.active(event.broadcaster_user_id) ??
+        this.store.waiting(event.broadcaster_user_id).at(-1);
+      if (!capsule || !this.openCapsule)
+        this.reject(event, context, 'No waiting capsule is available to open.');
+      else {
+        try {
+          const result = this.openCapsule(capsule.id);
+          await this.sender.send(
+            result.openingDueAt
+              ? 'Capsule ready. Opening shortly during this live stream.'
+              : 'Capsule ready. It will open after the next stream goes live.',
+            context,
+          );
+        } catch (error) {
+          this.reject(
+            event,
+            context,
+            error instanceof CapsuleError
+              ? error.message
+              : 'The opening could not be scheduled.',
+          );
+        }
+      }
+    } else if (command === 'lock') {
       const capsule = this.store.active(event.broadcaster_user_id);
       if (!capsule)
         this.reject(

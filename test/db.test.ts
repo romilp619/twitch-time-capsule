@@ -33,6 +33,7 @@ describe('SQLite migrations', () => {
     expect(db.prepare('SELECT name FROM schema_migrations').all()).toEqual([
       { name: 'initial_schema' },
       { name: 'capsule_channel_identity' },
+      { name: 'capsule_opening_schedule' },
     ]);
     expect(db.pragma('foreign_keys', { simple: true })).toBe(1);
     expect(
@@ -82,7 +83,7 @@ describe('SQLite migrations', () => {
     expect(() =>
       migrateDatabase(db, [
         {
-          version: 3,
+          version: 4,
           name: 'broken',
           sql: 'CREATE TABLE should_rollback (id INTEGER); INSERT INTO missing_table VALUES (1);',
         },
@@ -94,7 +95,7 @@ describe('SQLite migrations', () => {
         .get(),
     ).toBeUndefined();
     expect(
-      db.prepare('SELECT version FROM schema_migrations WHERE version=3').get(),
+      db.prepare('SELECT version FROM schema_migrations WHERE version=4').get(),
     ).toBeUndefined();
   });
 });

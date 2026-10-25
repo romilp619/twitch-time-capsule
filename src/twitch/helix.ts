@@ -153,6 +153,46 @@ export class HelixClient {
     );
     return result.data;
   }
+  async followerTotal(broadcasterId: string): Promise<number> {
+    const result = await this.request(
+      'streamer',
+      '/channels/followers',
+      z.object({ total: z.number().int().nonnegative() }),
+      {
+        expectedUserId: broadcasterId,
+        query: { broadcaster_id: broadcasterId, first: '1' },
+      },
+    );
+    return result.total;
+  }
+  async channelCategory(broadcasterId: string) {
+    const result = await this.request(
+      'streamer',
+      '/channels',
+      z.object({
+        data: z.array(
+          z.object({
+            broadcaster_id: z.string(),
+            game_id: z.string(),
+            game_name: z.string(),
+          }),
+        ),
+      }),
+      {
+        expectedUserId: broadcasterId,
+        query: { broadcaster_id: broadcasterId },
+      },
+    );
+    const channel = result.data.find(
+      (entry) => entry.broadcaster_id === broadcasterId,
+    );
+    if (!channel)
+      throw new TwitchError(
+        502,
+        'Twitch did not return this channel’s category.',
+      );
+    return channel;
+  }
   async currentUser(role: AccountRole): Promise<TwitchUser> {
     const result = await this.request(role, '/users', usersSchema);
     const user = result.data[0];
@@ -183,6 +223,7 @@ export class HelixClient {
     return (
       (
         await this.request('streamer', '/streams', streamsSchema, {
+          expectedUserId: broadcasterId,
           query: { user_id: broadcasterId },
         })
       ).data.length > 0

@@ -73,6 +73,9 @@ export type Capsule = CapsuleInput & {
   createdAt: string;
   lockedAt: string | null;
   openedAt: string | null;
+  readyAt: string | null;
+  openingDueAt: string | null;
+  postponedUntil: string | null;
   channel: ChannelIdentity;
   sealedCount: number;
   visibleCount: number;

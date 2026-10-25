@@ -52,6 +52,9 @@ export class FakeTwitch {
   }> = [];
 
   live = false;
+  followers = 0;
+  categoryId = '32982';
+  categoryName = 'Grand Theft Auto V';
   invalidAccess = new Set<string>();
   refreshStatus = 200;
   validationStatus = 200;
@@ -178,6 +181,18 @@ export class FakeTwitch {
       });
     if (url.pathname === '/helix/moderation/moderators')
       return json({ data: this.isMod ? [{ user_id: '2' }] : [] });
+    if (url.pathname === '/helix/channels/followers')
+      return json({ total: this.followers, data: [], pagination: {} });
+    if (url.pathname === '/helix/channels')
+      return json({
+        data: [
+          {
+            broadcaster_id: '1',
+            game_id: this.categoryId,
+            game_name: this.categoryName,
+          },
+        ],
+      });
     if (url.pathname === '/helix/streams')
       return json({ data: this.live ? [{ id: 'live-stream' }] : [] });
     throw new Error('Unexpected fake Twitch route');

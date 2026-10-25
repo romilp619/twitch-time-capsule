@@ -4,7 +4,7 @@ Time Capsule lets Twitch viewers seal free-text predictions and messages, then r
 
 ## Build status
 
-**Phase 4: capsules and sealing.** The app supports capsule creation, four stored opening conditions, !seal validation and message hiding, atomic numbering, reply batching, private counts, and an unauthenticated capsule page. Triggers, opening ceremonies, moderation reveals, and VIP rewards arrive in later phases. The original specification is in [CODEX_PROMPT.md](./CODEX_PROMPT.md).
+**Phase 5: opening triggers.** All four opening conditions now run against Twitch facts. The app handles live/offline delays, authenticated Open now and Postpone controls, moderator !capsule open, saved schedules, and public follower progress. Capsule creation, private sealing, deletion, numbering, and reply batching remain available. The animation, mod queue, and message reveals arrive in Phase 6; VIP rewards arrive in Phase 7. The original specification is in [CODEX_PROMPT.md](./CODEX_PROMPT.md).
 
 ## Quick start
 
@@ -19,7 +19,7 @@ npm run dev
 Open [http://localhost:3000/health](http://localhost:3000/health). Expected JSON:
 
 ```json
-{ "status": "ok", "app": "time-capsule", "phase": 4, "database": "ok" }
+{ "status": "ok", "app": "time-capsule", "phase": 5, "database": "ok" }
 ```
 
 The health server and dashboard start without Twitch credentials and show a setup warning. A fresh start creates data/time-capsule.db and two different random keys in data/keys.json. Open the private dashboard URL printed at startup. The overlay arrives in Phase 6.
@@ -57,7 +57,7 @@ Copy .env.example to .env with your editor when needed. Every currently supporte
 
 The default interface is 127.0.0.1 and port 3000. DATA_DIR resolves relative to the project root, so development and compiled runs use the same database. ADMIN_KEY and OVERLAY_KEY can override generated keys, must each have at least 32 characters, and must differ. Persisted keys are reused on restart. Losing keys invalidates future bookmarked private URLs.
 
-SQLite uses foreign keys, WAL, a five-second busy timeout, and numbered migrations recorded transactionally in schema_migrations. The initial schema defines capsules, seals, prophets, and the event log, including database constraints for one sealing capsule and unique per-capsule seal numbers. Seal acceptance uses an IMMEDIATE transaction for numbering, duplicate checks, cooldowns, and per-user limits. Migration 2 records capsule channel identity so account changes cannot redirect new seals into another channel's capsule.
+SQLite uses foreign keys, WAL, a five-second busy timeout, and numbered migrations recorded transactionally in schema_migrations. The initial schema defines capsules, seals, prophets, and the event log, including database constraints for one sealing capsule and unique per-capsule seal numbers. Seal acceptance uses an IMMEDIATE transaction for numbering, duplicate checks, cooldowns, and per-user limits. Migration 2 records capsule channel identity so account changes cannot redirect new seals into another channel's capsule. Migration 3 adds durable opening deadlines and postponements, plus a unique constraint allowing only one opening at a time. Existing capsules and seals are preserved.
 
 .env, data/, .tools/, .tmp/, node_modules/, and dist/ are ignored by Git. Keep local database and key backups private. Tests create and remove temporary storage under this project's .tmp/ directory.
 
@@ -69,11 +69,11 @@ flowchart LR
   Server --> DB["SQLite + migrations"]
   Server --> Dashboard["Dashboard + mod queue (planned)"]
   Server --> Overlay["OBS overlay via WebSocket (planned)"]
-  Server --> Public["Public capsule page (planned)"]
+  Server --> Public["Public capsule page"]
   Demo["Fake Twitch story (planned)"] --> Server
 ```
 
-src/config.ts loads settings and private keys. src/server.ts builds a testable server; src/index.ts starts it and handles shutdown. src/db/ owns schema migrations and database setup. src/twitch/auth.ts owns OAuth state, private tokens, validation, and refresh. src/twitch/helix.ts handles authenticated requests and bounded rate-limit retries. src/twitch/connection.ts maintains dashboard status and the hourly job. public/dashboard/ contains dependency-free HTML, CSS, and JavaScript.
+src/config.ts loads settings and private keys. src/server.ts builds a testable server; src/index.ts starts it and handles shutdown. src/db/ owns schema migrations and database setup. src/twitch/auth.ts owns OAuth state, private tokens, validation, and refresh. src/twitch/helix.ts handles authenticated requests and bounded rate-limit retries. src/twitch/connection.ts maintains dashboard status and the hourly job. src/capsule/triggers.ts contains the pure state transition function; src/capsule/scheduler.ts owns polling, verified Twitch facts, and deadlines. public/dashboard/ contains dependency-free HTML, CSS, and JavaScript.
 
 ## Dependencies
 
@@ -159,11 +159,11 @@ The exact Twitch CLI mock-server commands will be checked and documented in Phas
 
 ## Capsule creation and sealing (Phase 4)
 
-In the dashboard's Capsules section, choose a title and an opening condition: manual, date, follower goal, or first stream in a Twitch category. Date inputs use your browser's local time and are stored as ISO timestamps. Category search uses GET /helix/search/categories and stores both the chosen ID and display name. The trigger engine will use the ID in Phase 5. Opening controls are intentionally reserved for that phase.
+In the dashboard's Capsules section, choose a title and an opening condition: manual, date, follower goal, or first stream in a Twitch category. Date inputs use your browser's local time and are stored as ISO timestamps. Category search uses GET /helix/search/categories and stores both the chosen ID and display name. The Phase 5 trigger engine compares the ID; display names never determine readiness.
 
 Limits default to three seals per viewer, 280 Unicode code points per message, and a ten-second cooldown. You can set a per-user limit from 1 to 100 and a maximum length from 3 to 280. VIP reward preferences and days are stored for Phase 7; they do not grant VIP yet. Only one capsule may be sealing at a time, enforced by SQLite and the create route. Locking stops new seals and frees the active slot; archiving preserves all stored seals.
 
-Each capsule records its broadcaster ID, login, and display name. New seals must come from that channel. The private list can show capsules from a previously connected channel so you can lock/archive them before changing channels. !capsule describes the active or latest non-archived capsule for the current channel, including count, opening condition/countdown, and public URL. Moderator/broadcaster badges authorize !capsule lock and !capsule status; VIP alone does not. Own-sender commands remain ignored in single-account mode, so use dashboard controls or another moderator account.
+Each capsule records its broadcaster ID, login, and display name. New seals must come from that channel. The private list can show capsules from a previously connected channel so you can lock/archive them before changing channels. !capsule describes the active or latest non-archived capsule for the current channel, including count, opening condition/countdown, and public URL. Moderator/broadcaster badges authorize !capsule lock, !capsule open, and !capsule status; VIP alone does not. Own-sender commands remain ignored in single-account mode, so use dashboard controls or another moderator account.
 
 ### What happens to !seal
 
@@ -195,9 +195,51 @@ Twitch messages may briefly be seen before deletion; broadcaster/moderator messa
 
 Official references: [Delete Chat Messages](https://dev.twitch.tv/docs/api/reference/#delete-chat-messages), [Search Categories](https://dev.twitch.tv/docs/api/reference/#search-categories).
 
+## Opening triggers (Phase 5)
+
+A waiting capsule moves from sealing/locked to **ready** once its condition is met. Readiness stops new seals. It becomes **opening** only while live:
+
+| Trigger   | How it is checked                                                                                                    |
+| --------- | -------------------------------------------------------------------------------------------------------------------- |
+| Date      | Every 30 seconds, also on startup and connection recheck                                                             |
+| Followers | Authoritative Helix total at startup, on channel.follow, and every 5 minutes                                         |
+| Category  | Matching category **ID** while live, checked at startup, on channel.update, and on stream.online using GET /channels |
+| Manual    | Dashboard **Open now** or moderator **!capsule open**                                                                |
+
+When a condition is reached during a live stream, opening waits 5 seconds. A capsule made ready offline stays ready until the next live stream, then waits OFFLINE_OPEN_DELAY_SECONDS (60 by default). A lost/offline/unknown live state cancels the countdown. The scheduler also checks Helix live status at the deadline so a missed offline event cannot open a capsule while offline.
+
+**Postpone 10 min** keeps the original condition and saves a ten-minute opening delay. Before the condition is reached, sealing can continue. Once ready, the capsule stays ready during the postponement. Restarting the app preserves the postponement and all seals, verifies current Twitch facts, and starts a fresh live settling delay where necessary. **Open now** overrides both the condition and postponement, waits five seconds if live, or waits for the next live stream if offline. It always respects the live requirement.
+
+Opening controls are shown for sealing, locked, and ready capsules. Archive can cancel a ready capsule. Once opening starts, it remains opening until the Phase 6 ceremony controls are implemented. Other ready capsules wait their turn. This phase never reveals message text.
+
+The dashboard shows current follower totals, category, live state, opening time, postponement, and errors. The public page adds the current follower total for follower goals while keeping viewer identities and sealed contents private. The three new fields readyAt, openingDueAt, and postponedUntil are private dashboard metadata.
+
+### Phase 5 acceptance check
+
+The development server runs with the same saved accounts, database, dashboard key, and public links. Refresh the dashboard at the private URL printed at startup. If starting it manually in this WSL workspace:
+
+```sh
+cd ~/hackathon_projects/time-capsule
+export PATH="$PWD/.tools/node/bin:$PATH"
+npm run dev
+```
+
+1. For an offline check, use a manual capsule and click **Open now**. Expect **READY**, a waiting-for-live message, and the same sealed count. Click **Postpone 10 min** and confirm a saved time appears. Reload the page: the postponement remains. Open now clears it.
+2. For the category acceptance test, lock the existing sealing capsule first (keeps its messages), then create a capsule with the **first stream in category** condition. Search and select a category that differs from your current stream category.
+3. Go live in the other category; this capsule must stay sealing. Change the Twitch stream category to the selected one. Expect **READY**, then **OPENING** after about five seconds. Changing the category while offline does not trigger it.
+4. To test an offline-ready delay, make a manual/date/follower capsule ready while offline, then go live. Expect it to wait the configured 60 seconds. Postpone before its deadline to delay it.
+5. Test moderator **!capsule open** with a moderator account different from the effective sending account. Ordinary viewers and VIPs cannot use it. In single-account mode, use the dashboard: the streamer's own chat commands are ignored to prevent loops.
+6. The public page must continue to show counts and no sealed contents. At OPENING it says the opening has started. The OBS animation, approvals, and reveal controls are specifically Phase 6.
+
+For fast, account-free automated acceptance checks, run `npm test -- test/triggers.test.ts test/scheduler.test.ts test/trigger-routes.test.ts`. These use fake Twitch HTTP and a real local mock EventSub WebSocket server to cover category IDs, all trigger types, timing, permissions, missed offline events, event/snapshot races, postponement persistence, and privacy.
+
+New private controls: POST /api/capsules/:id/open and POST /api/capsules/:id/postpone. They require the same admin key and browser-origin checks as other mutations. Both require this capsule's streamer account to be connected. GET /api/connection and dashboard WebSocket snapshots include trigger facts and warnings.
+
+New Helix reads use the streamer user token: [Get Channel Information](https://dev.twitch.tv/docs/api/reference/#get-channel-information) supplies game_id/game_name and [Get Channel Followers](https://dev.twitch.tv/docs/api/reference/#get-channel-followers) supplies total. Only the total is retained; no follower list is stored. Existing moderator:read:followers consent covers the follower endpoint; no new dependencies or scopes are added.
+
 ## Next phase
 
-Phase 5 adds the pure trigger engine, date/follower/category checks, live/offline opening delays, Open now, and Postpone controls.
+Phase 6 adds the ceremony state machine, transparent OBS overlay, moderator approval queue, reveal controls, hotkeys, and a preview button.
 
 ## How I used Codex
 

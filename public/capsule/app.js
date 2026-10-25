@@ -38,7 +38,13 @@ function renderPublicCapsule(capsule) {
       ', during a live stream.';
   if (capsule.triggerType === 'followers')
     condition =
-      'Opens at ' + capsule.triggerValue.toLocaleString() + ' followers.';
+      'Opens at ' +
+      capsule.triggerValue.toLocaleString() +
+      ' followers' +
+      (typeof capsule.followers === 'number'
+        ? ': now ' + capsule.followers.toLocaleString()
+        : '') +
+      ', during a live stream.';
   if (capsule.triggerType === 'category')
     condition =
       'Opens the first time ' +
@@ -53,9 +59,13 @@ function renderPublicCapsule(capsule) {
   document.getElementById('capsule-state').textContent =
     capsule.status === 'sealing'
       ? 'Still collecting memories.'
-      : capsule.status === 'archived'
-        ? 'Archived.'
-        : 'Sealed and waiting.';
+      : capsule.status === 'ready'
+        ? 'Ready and waiting to open live.'
+        : capsule.status === 'opening'
+          ? 'The opening has started. Messages remain sealed until revealed.'
+          : capsule.status === 'archived'
+            ? 'Archived.'
+            : 'Sealed and waiting.';
   document.getElementById('how-to-seal').hidden = capsule.status !== 'sealing';
   document.getElementById('closed-note').hidden = capsule.status === 'sealing';
   document.getElementById('closed-note').textContent =

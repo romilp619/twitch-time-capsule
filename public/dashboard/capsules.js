@@ -1,6 +1,7 @@
 const capsuleKey = new URLSearchParams(location.search).get('key') || '';
 let capsuleBusy = false;
 let capsuleConnected = false;
+let openingFacts = null;
 let capsuleList = [];
 let selectedCategory = null;
 let searchTimer;
@@ -36,10 +37,12 @@ function updateCapsuleButton() {
     ? 'Connect the streamer account to create a capsule.'
     : active
       ? 'Lock or archive the current sealing capsule before creating another.'
-      : 'One capsule can accept seals at a time. Opening controls arrive in the next build.';
+      : 'One capsule can accept seals at a time. All openings wait for a live stream.';
 }
 globalThis.setCapsuleConnection = (state) => {
   capsuleConnected = state.streamer.status === 'connected';
+  openingFacts = state.triggers ?? null;
+  renderCapsules(capsuleList);
   updateCapsuleButton();
 };
 function updateTriggerFields() {
@@ -63,6 +66,31 @@ function renderCapsules(capsules) {
   capsuleList = capsules;
   const list = document.getElementById('capsule-list');
   list.replaceChildren();
+  if (openingFacts) {
+    const facts = document.createElement('p');
+    facts.className = 'muted';
+    facts.textContent =
+      'Opening checks: ' +
+      (openingFacts.live === true
+        ? 'Live'
+        : openingFacts.live === false
+          ? 'Offline'
+          : 'Live status unknown') +
+      ' · Followers: ' +
+      (openingFacts.followers === null
+        ? 'unknown'
+        : openingFacts.followers.toLocaleString()) +
+      ' · Category: ' +
+      (openingFacts.categoryName ||
+        (openingFacts.categoryId === '' ? 'None set' : 'unknown'));
+    list.append(facts);
+    for (const message of openingFacts.warnings ?? []) {
+      const warning = document.createElement('p');
+      warning.className = 'banner danger';
+      warning.textContent = message;
+      list.append(warning);
+    }
+  }
   for (const capsule of capsules) {
     const card = document.createElement('article');
     card.className = 'capsule-card';
@@ -112,35 +140,69 @@ function renderCapsules(capsules) {
       }
     });
     actions.append(copy);
-    for (const action of ['lock', 'archive']) {
+    for (const action of ['open', 'postpone', 'lock', 'archive']) {
+      if (
+        ['open', 'postpone'].includes(action) &&
+        !['sealing', 'locked', 'ready'].includes(capsule.status)
+      )
+        continue;
       if (action === 'lock' && capsule.status !== 'sealing') continue;
       if (
         action === 'archive' &&
-        !['sealing', 'locked', 'opened'].includes(capsule.status)
+        !['sealing', 'locked', 'ready', 'opened'].includes(capsule.status)
       )
         continue;
       const button = document.createElement('button');
       button.type = 'button';
-      button.className = 'secondary';
-      button.textContent = action === 'lock' ? 'Lock sealing' : 'Archive';
+      button.className = action === 'open' ? 'primary open-now' : 'secondary';
+      button.textContent = {
+        open: 'Open now',
+        postpone: 'Postpone 10 min',
+        lock: 'Lock sealing',
+        archive: 'Archive',
+      }[action];
       button.disabled = capsuleBusy;
       button.addEventListener('click', () => {
         void capsuleAction(async () => {
-          await capsuleApi(
+          const result = await capsuleApi(
             '/api/capsules/' + capsule.id + '/' + action,
             'POST',
           );
           await refreshCapsules();
           capsuleMessage(
-            action === 'lock'
-              ? 'Capsule locked. Existing seals are preserved.'
-              : 'Capsule archived. Existing seals are preserved.',
+            action === 'open'
+              ? result.capsule.openingDueAt
+                ? 'Capsule ready. Opening in 5 seconds while live.'
+                : 'Capsule ready. Waiting for the next live stream.'
+              : action === 'postpone'
+                ? 'Opening postponed for 10 minutes. Seals and the opening condition are preserved.'
+                : action === 'lock'
+                  ? 'Capsule locked. Existing seals are preserved.'
+                  : 'Capsule archived. Existing seals are preserved.',
           );
         });
       });
       actions.append(button);
     }
     card.append(top, condition, count, owner);
+    const timing = document.createElement('p');
+    timing.className = 'opening-timing';
+    timing.textContent =
+      capsule.status === 'opening'
+        ? 'Opening started. The animation and message reveal controls arrive in Phase 6.'
+        : capsule.postponedUntil &&
+            Date.parse(capsule.postponedUntil) > Date.now()
+          ? 'Postponed until ' +
+            new Date(capsule.postponedUntil).toLocaleString() +
+            '. Opening also requires a live stream.'
+          : capsule.status === 'ready'
+            ? capsule.openingDueAt
+              ? 'Scheduled to open at ' +
+                new Date(capsule.openingDueAt).toLocaleTimeString() +
+                '. Postpone to delay.'
+              : 'Ready. Waiting for a live stream, then the configured settling-in delay.'
+            : 'Open now overrides the condition. Postpone delays opening by 10 minutes. Both keep the live-stream requirement.';
+    card.append(timing);
     if (capsule.visibleCount > 0) {
       const warning = document.createElement('p');
       warning.className = 'visible-warning';

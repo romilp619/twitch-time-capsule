@@ -1,3 +1,8 @@
+import {
+  nextTriggerState,
+  type TriggerFacts,
+  type TriggerAction,
+} from './triggers.js';
 import type Database from 'better-sqlite3';
 import { randomBytes } from 'node:crypto';
 import {
@@ -21,6 +26,9 @@ interface CapsuleRow {
   created_at: string;
   locked_at: string | null;
   opened_at: string | null;
+  ready_at: string | null;
+  opening_due_at: string | null;
+  postponed_until: string | null;
   broadcaster_id: string;
   channel_login: string;
   channel_name: string;
@@ -65,6 +73,9 @@ export class CapsuleStore {
       createdAt: row.created_at,
       lockedAt: row.locked_at,
       openedAt: row.opened_at,
+      readyAt: row.ready_at,
+      openingDueAt: row.opening_due_at,
+      postponedUntil: row.postponed_until,
       channel: {
         id: row.broadcaster_id,
         login: row.channel_login,
@@ -90,6 +101,12 @@ export class CapsuleStore {
       .get(id) as CapsuleRow | undefined;
     return row ? this.capsule(row) : null;
   }
+  bySlug(slug: string): Capsule | null {
+    const row = this.db
+      .prepare(summarySql + ' WHERE c.slug = ? GROUP BY c.id')
+      .get(slug) as CapsuleRow | undefined;
+    return row ? this.capsule(row) : null;
+  }
   active(broadcasterId: string): Capsule | null {
     const row = this.db
       .prepare(
@@ -98,6 +115,66 @@ export class CapsuleStore {
       )
       .get(broadcasterId) as CapsuleRow | undefined;
     return row ? this.capsule(row) : null;
+  }
+  waiting(broadcasterId: string): Capsule[] {
+    return (
+      this.db
+        .prepare(
+          summarySql +
+            " WHERE c.broadcaster_id = ? AND c.status IN ('sealing', 'locked', 'ready') GROUP BY c.id ORDER BY c.id",
+        )
+        .all(broadcasterId) as CapsuleRow[]
+    ).map((row) => this.capsule(row));
+  }
+  hasOpening(): boolean {
+    return Boolean(
+      this.db.prepare("SELECT id FROM capsules WHERE status = 'opening'").get(),
+    );
+  }
+  trigger(
+    id: number,
+    facts: TriggerFacts,
+    action: TriggerAction = 'check',
+  ): Capsule {
+    let changed = false;
+    this.db
+      .transaction(() => {
+        const capsule = this.get(id);
+        if (!capsule) throw new CapsuleError(404, 'Capsule not found.');
+        const next = nextTriggerState(
+          capsule,
+          {
+            ...facts,
+            openingAllowed:
+              facts.openingAllowed !== false && !this.hasOpening(),
+          },
+          action,
+        );
+        if (
+          next.status === capsule.status &&
+          next.readyAt === capsule.readyAt &&
+          next.openingDueAt === capsule.openingDueAt &&
+          next.postponedUntil === capsule.postponedUntil
+        )
+          return;
+        this.db
+          .prepare(
+            "UPDATE capsules SET status = ?, ready_at = ?, opening_due_at = ?, postponed_until = ?, locked_at = CASE WHEN ? IN ('ready', 'opening') THEN COALESCE(locked_at, ?) ELSE locked_at END WHERE id = ?",
+          )
+          .run(
+            next.status,
+            next.readyAt,
+            next.openingDueAt,
+            next.postponedUntil,
+            next.status,
+            new Date(facts.now).toISOString(),
+            id,
+          );
+        changed = true;
+      })
+      .immediate();
+    if (changed) this.changed();
+    return this.get(id)!;
   }
   create(raw: unknown, channel: ChannelIdentity): Capsule {
     const result = createCapsuleSchema.safeParse(raw);
@@ -168,7 +245,7 @@ export class CapsuleStore {
         throw new CapsuleError(409, 'Only a sealing capsule can be locked.');
       if (
         action === 'archive' &&
-        !['sealing', 'locked', 'opened'].includes(capsule.status)
+        !['sealing', 'locked', 'ready', 'opened'].includes(capsule.status)
       )
         throw new CapsuleError(
           409,

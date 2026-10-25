@@ -82,6 +82,15 @@ export const migrations: readonly Migration[] = [
       ALTER TABLE capsules ADD COLUMN channel_name TEXT NOT NULL DEFAULT '';
     `,
   },
+  {
+    version: 3,
+    name: 'capsule_opening_schedule',
+    sql: `
+      ALTER TABLE capsules ADD COLUMN opening_due_at TEXT;
+      ALTER TABLE capsules ADD COLUMN postponed_until TEXT;
+      CREATE UNIQUE INDEX one_opening_capsule ON capsules(status) WHERE status = 'opening';
+    `,
+  },
 ];
 
 export function migrateDatabase(

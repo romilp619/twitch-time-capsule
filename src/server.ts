@@ -1,3 +1,4 @@
+import { TriggerScheduler } from './capsule/scheduler.js';
 import { CapsuleStore } from './capsule/store.js';
 import { BlockedWords } from './capsule/moderation.js';
 import { CapsuleError } from './capsule/model.js';
@@ -51,6 +52,15 @@ export function buildServer(
   ]);
   const helix = new HelixClient(auth, dependencies.fetcher);
   const capsules = new CapsuleStore(db, broadcast, dependencies.now);
+  const triggers = new TriggerScheduler(
+    capsules,
+    auth,
+    helix,
+    log,
+    broadcast,
+    config.offlineOpenDelaySeconds * 1000,
+    dependencies.now,
+  );
   const blockedWords = new BlockedWords(config.dataDir);
   const runtime =
     dependencies.eventsubEnabled === false
@@ -61,12 +71,14 @@ export function buildServer(
           log,
           broadcast,
           (live) => connection.setLive(live),
-          { ...dependencies.eventsubOptions, capsules, blockedWords },
+          { ...dependencies.eventsubOptions, capsules, blockedWords, triggers },
         );
-  const connection = new TwitchConnection(auth, helix, runtime);
+  const connection = new TwitchConnection(auth, helix, runtime, (live) =>
+    triggers.sync(live),
+  );
   const snapshot = () => ({
     type: 'snapshot',
-    connection: connection.snapshot(),
+    connection: { ...connection.snapshot(), triggers: triggers.snapshot() },
     events: log.latest(),
     capsules: capsules.list(),
   });
@@ -104,10 +116,14 @@ export function buildServer(
             },
           },
   });
-  app.addHook('onReady', () => connection.start());
+  app.addHook('onReady', async () => {
+    await connection.start();
+    triggers.start();
+  });
   app.addHook('onClose', async () => {
     closing = true;
     for (const socket of peers) socket.terminate();
+    await triggers.close();
     await connection.close();
     db.close();
   });
@@ -162,6 +178,7 @@ export function buildServer(
   };
   registerCapsuleRoutes(app, {
     store: capsules,
+    triggers,
     auth,
     helix,
     log,
@@ -199,7 +216,7 @@ export function buildServer(
 
   app.get('/health', () => {
     db.prepare('SELECT 1').get();
-    return { status: 'ok', app: 'time-capsule', phase: 4, database: 'ok' };
+    return { status: 'ok', app: 'time-capsule', phase: 5, database: 'ok' };
   });
   app.get('/', async (_request, reply) => reply.redirect('/health'));
   app.get('/dashboard', async (request, reply) => {
@@ -251,9 +268,10 @@ export function buildServer(
         ),
       ),
   );
-  app.get('/api/connection', { preHandler: requireAdmin }, () =>
-    connection.snapshot(),
-  );
+  app.get('/api/connection', { preHandler: requireAdmin }, () => ({
+    ...connection.snapshot(),
+    triggers: triggers.snapshot(),
+  }));
   app.get('/api/events', { preHandler: requireAdmin }, () => log.latest());
   app.post(
     '/api/connection/refresh',
@@ -261,7 +279,7 @@ export function buildServer(
     async () => {
       await connection.refresh();
       broadcast();
-      return connection.snapshot();
+      return snapshot().connection;
     },
   );
   app.post(
@@ -296,7 +314,7 @@ export function buildServer(
       connection.notice(null);
       await connection.refresh();
       broadcast();
-      return connection.snapshot();
+      return snapshot().connection;
     },
   );
   app.get('/auth/callback', async (request, reply) => {

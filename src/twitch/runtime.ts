@@ -1,3 +1,4 @@
+import type { TriggerScheduler } from '../capsule/scheduler.js';
 import { CapsuleCommands } from '../capsule/commands.js';
 import type { CapsuleStore } from '../capsule/store.js';
 import type { BlockedWords } from '../capsule/moderation.js';
@@ -35,6 +36,7 @@ const followSchema = broadcasterSchema.extend({
 });
 export interface RuntimeOptions {
   capsules?: CapsuleStore;
+  triggers?: TriggerScheduler;
   blockedWords?: BlockedWords;
   batchWindowMs?: number;
   url?: string;
@@ -76,6 +78,9 @@ export class TwitchRuntime {
             auth.config.baseUrl,
             Date.now,
             options.batchWindowMs,
+            options.triggers
+              ? (id) => options.triggers!.action(id, 'open')
+              : undefined,
           )
         : undefined;
     this.commands = new ChatCommands(
@@ -256,25 +261,34 @@ export class TwitchRuntime {
       case 'stream.offline': {
         const live = notification.subscription.type === 'stream.online';
         this.setLive(live);
+        await this.options.triggers?.stream(broadcasterId, live);
         this.log.write(notification.subscription.type, { live });
         break;
       }
       case 'channel.update': {
         const category = categorySchema.safeParse(notification.event);
-        if (category.success)
+        if (category.success) {
+          this.options.triggers?.category(
+            broadcasterId,
+            category.data.category_id,
+            category.data.category_name,
+          );
           this.log.write('channel.update', {
             categoryId: category.data.category_id,
             categoryName: category.data.category_name,
           });
+        }
         break;
       }
       case 'channel.follow': {
         const follow = followSchema.safeParse(notification.event);
-        if (follow.success)
+        if (follow.success) {
+          await this.options.triggers?.follow(broadcasterId);
           this.log.write('channel.follow', {
             login: follow.data.user_login,
             userId: follow.data.user_id,
           });
+        }
         break;
       }
     }

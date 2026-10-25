@@ -22,7 +22,7 @@ describe('HTTP server', () => {
     expect(response.json()).toEqual({
       status: 'ok',
       app: 'time-capsule',
-      phase: 4,
+      phase: 5,
       database: 'ok',
     });
   });

@@ -588,3 +588,13 @@ footer {
     max-height: none;
   }
 }
+
+.opening-timing {
+  color: var(--gold, #dfc17c);
+  font-size: 0.9rem;
+  line-height: 1.6;
+}
+.open-now {
+  min-width: 150px;
+  font-weight: 600;
+}

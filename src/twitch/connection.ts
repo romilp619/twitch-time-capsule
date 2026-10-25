@@ -20,6 +20,7 @@ export class TwitchConnection {
     readonly auth: TwitchAuth,
     readonly helix: HelixClient,
     private readonly events?: TwitchRuntime,
+    private readonly onRefresh?: (live: boolean | null) => Promise<void>,
   ) {}
   snapshot() {
     const streamer = this.auth.publicAccount('streamer');
@@ -61,7 +62,10 @@ export class TwitchConnection {
   refresh(): Promise<void> {
     if (this.pending) return this.pending;
     const operation = this.performRefresh()
-      .then(() => this.events?.sync())
+      .then(async () => {
+        await this.onRefresh?.(this.live);
+        await this.events?.sync();
+      })
       .catch((error: unknown) => {
         this.warnings = [safeMessage(error)];
       });
