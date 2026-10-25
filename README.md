@@ -4,7 +4,7 @@ Time Capsule lets Twitch viewers seal free-text predictions and messages, then r
 
 ## Build status
 
-**Phase 3: EventSub and chat.** The app supports Twitch OAuth, private token lifecycle, one EventSub connection per token user, live dashboard updates, a private channel activity log, and a rate-limited !capsule reply. Capsules, seal deletion, triggers, ceremony, and rewards arrive in later phases. The original specification is in [CODEX_PROMPT.md](./CODEX_PROMPT.md).
+**Phase 4: capsules and sealing.** The app supports capsule creation, four stored opening conditions, !seal validation and message hiding, atomic numbering, reply batching, private counts, and an unauthenticated capsule page. Triggers, opening ceremonies, moderation reveals, and VIP rewards arrive in later phases. The original specification is in [CODEX_PROMPT.md](./CODEX_PROMPT.md).
 
 ## Quick start
 
@@ -19,7 +19,7 @@ npm run dev
 Open [http://localhost:3000/health](http://localhost:3000/health). Expected JSON:
 
 ```json
-{ "status": "ok", "app": "time-capsule", "phase": 3, "database": "ok" }
+{ "status": "ok", "app": "time-capsule", "phase": 4, "database": "ok" }
 ```
 
 The health server and dashboard start without Twitch credentials and show a setup warning. A fresh start creates data/time-capsule.db and two different random keys in data/keys.json. Open the private dashboard URL printed at startup. The overlay arrives in Phase 6.
@@ -57,7 +57,7 @@ Copy .env.example to .env with your editor when needed. Every currently supporte
 
 The default interface is 127.0.0.1 and port 3000. DATA_DIR resolves relative to the project root, so development and compiled runs use the same database. ADMIN_KEY and OVERLAY_KEY can override generated keys, must each have at least 32 characters, and must differ. Persisted keys are reused on restart. Losing keys invalidates future bookmarked private URLs.
 
-SQLite uses foreign keys, WAL, a five-second busy timeout, and numbered migrations recorded transactionally in schema_migrations. The initial schema defines capsules, seals, prophets, and the event log, including database constraints for one sealing capsule and unique per-capsule seal numbers. Chat insertion transactions will be implemented in Phase 4.
+SQLite uses foreign keys, WAL, a five-second busy timeout, and numbered migrations recorded transactionally in schema_migrations. The initial schema defines capsules, seals, prophets, and the event log, including database constraints for one sealing capsule and unique per-capsule seal numbers. Seal acceptance uses an IMMEDIATE transaction for numbering, duplicate checks, cooldowns, and per-user limits. Migration 2 records capsule channel identity so account changes cannot redirect new seals into another channel's capsule.
 
 .env, data/, .tools/, .tmp/, node_modules/, and dist/ are ignored by Git. Keep local database and key backups private. Tests create and remove temporary storage under this project's .tmp/ directory.
 
@@ -115,7 +115,7 @@ If changing the port/origin, update PORT, BASE_URL, TWITCH_REDIRECT_URI, and the
 
 Streamer scopes: channel:manage:vips, moderator:read:followers, moderation:read, user:read:chat, user:write:chat, moderator:manage:chat_messages. Bot scopes: user:read:chat, user:write:chat, moderator:manage:chat_messages.
 
-**Specification correction:** the streamer also requests moderator:manage:chat_messages so single-account mode can delete viewer seals in Phase 4. The original scope list omitted it, but [Twitch requires it for Delete Chat Messages](https://dev.twitch.tv/docs/api/reference/#delete-chat-messages). Phase 3 adds only the !capsule chat reply; no VIP actions occur yet.
+**Specification correction:** the streamer also requests moderator:manage:chat_messages so single-account mode can delete viewer seals in Phase 4. The original scope list omitted it, but [Twitch requires it for Delete Chat Messages](https://dev.twitch.tv/docs/api/reference/#delete-chat-messages). Phase 4 adds !seal and chat deletion; no VIP actions occur yet.
 
 Tokens are stored atomically in gitignored data/tokens.json with owner-only permissions on systems that support POSIX modes. Refresh operations are shared per role so concurrent 401s do not rotate the same refresh token repeatedly. Helix sends both Client-Id and Bearer headers, honors Ratelimit-Reset with at most two retries, and surfaces waits beyond 60 seconds for manual retry. Requests have a 10-second timeout. No raw Twitch error bodies, authorization codes, keys, or tokens are written to request logs.
 
@@ -139,7 +139,7 @@ After session_welcome, subscriptions are requested concurrently to meet Twitch's
 
 EventSub delivery IDs are deduplicated across socket handovers and ordinary reconnects. Chat message IDs are deduplicated separately. Both in-memory caches retain at most 5000 IDs for up to ten minutes. Notifications must match an expected subscription type, version, and condition. No events lost during an ordinary disconnect can be replayed by Twitch.
 
-The dashboard connects to /ws/dashboard using its private key and configured browser origin. It restores a fresh snapshot after reconnecting, with HTTP polling as fallback. Open Event subscriptions & keepalive to inspect each account's subscriptions and last keepalive. The Channel activity section shows the newest 100 events; SQLite retains at most 1000 log entries. Logs redact known credentials and omit !seal contents. Normal chat text is stored in this private debug log. Capsules and sealed-message storage are not implemented yet.
+The dashboard connects to /ws/dashboard using its private key and configured browser origin. It restores a fresh snapshot after reconnecting, with HTTP polling as fallback. Open Event subscriptions & keepalive to inspect each account's subscriptions and last keepalive. The Channel activity section shows the newest 100 events; SQLite retains at most 1000 log entries. Logs redact known credentials and omit !seal contents. Normal chat text is stored in this private debug log. Sealed-message storage is implemented in Phase 4 and is excluded from this event log.
 
 ### Phase 3 acceptance check
 
@@ -157,9 +157,47 @@ Official references: [WebSocket lifecycle and limits](https://dev.twitch.tv/docs
 
 The exact Twitch CLI mock-server commands will be checked and documented in Phase 8, as specified in the build plan. The automated Phase 3 suite exercises the real ws client locally without the CLI.
 
+## Capsule creation and sealing (Phase 4)
+
+In the dashboard's Capsules section, choose a title and an opening condition: manual, date, follower goal, or first stream in a Twitch category. Date inputs use your browser's local time and are stored as ISO timestamps. Category search uses GET /helix/search/categories and stores both the chosen ID and display name. The trigger engine will use the ID in Phase 5. Opening controls are intentionally reserved for that phase.
+
+Limits default to three seals per viewer, 280 Unicode code points per message, and a ten-second cooldown. You can set a per-user limit from 1 to 100 and a maximum length from 3 to 280. VIP reward preferences and days are stored for Phase 7; they do not grant VIP yet. Only one capsule may be sealing at a time, enforced by SQLite and the create route. Locking stops new seals and frees the active slot; archiving preserves all stored seals.
+
+Each capsule records its broadcaster ID, login, and display name. New seals must come from that channel. The private list can show capsules from a previously connected channel so you can lock/archive them before changing channels. !capsule describes the active or latest non-archived capsule for the current channel, including count, opening condition/countdown, and public URL. Moderator/broadcaster badges authorize !capsule lock and !capsule status; VIP alone does not. Own-sender commands remain ignored in single-account mode, so use dashboard controls or another moderator account.
+
+### What happens to !seal
+
+1. Validate an active capsule, 3-to-configured-maximum Unicode length, whole-word blocked terms, per-user limit, and ten-second cooldown.
+2. In one IMMEDIATE SQLite transaction, check duplicate Twitch message IDs and assign the next unique number for that capsule. Rejected seals are not stored.
+3. Delete exactly that Twitch message using DELETE /helix/moderation/chat with broadcaster_id, moderator_id, and message_id. The app never calls this endpoint without a specific message ID, since omitting it would clear the chat.
+4. Store hidden=true only after Twitch returns success. Moderator/broadcaster messages are stored with hidden=false without attempting a deletion Twitch forbids. Other deletion errors preserve the seal and show a dashboard warning.
+5. Combine acknowledgements over a three-second window. A single accepted viewer message gets Sealed message #N from @user. Opens: ...; a burst gets an accurate number range and combined names. Replies retain their original channel/sender context, so account changes cancel them rather than sending to another channel. Rejections are grouped and limited to one per user per ten seconds to avoid repeated error spam.
+
+The blocked-word file is data/blocked-words.txt (gitignored, created on startup). Add one word or phrase per line; # starts a comment. Matching is case-insensitive and respects Unicode word boundaries, so a blocked bad does not reject badminton. Edits reload automatically. An unreadable or oversized file causes seals to be rejected visibly instead of silently bypassing moderation.
+
+### Public capsule pages
+
+View public page opens /c/:slug. The page and /api/public/capsules/:slug expose only whitelisted capsule/channel metadata, configured limits, condition, and sealed count. They never expose viewer IDs, logins, display names, hidden flags, or sealed texts. The count refreshes every five seconds; date capsules show a live countdown. Public pages are unauthenticated but the server still binds to 127.0.0.1, so sharing outside this computer needs a separately configured hosting/tunnel arrangement.
+
+Twitch messages may briefly be seen before deletion; broadcaster/moderator messages cannot be hidden at all. The dashboard shows how many stored messages are not hidden. This is chat message deletion rather than encryption or a guarantee that nobody saw the original message. The pre-opening public page stays private with respect to contents.
+
+### Phase 4 acceptance check
+
+1. Start npm run dev if necessary and refresh the private dashboard. Create a capsule titled Test predictions with When I choose as its opening condition.
+2. From your viewer account (romil100 in your current setup), send !seal The next boss will be a dragon in the channel chat.
+3. The original message should disappear, the dashboard count should increase, and within about three seconds romilg16 should acknowledge seal #1. Chat send spacing may add a short delay during bursts.
+4. Open View public page. It should show the title, condition, and count; it must not show the sealed message or viewer identity. Copy public link should copy that public URL.
+5. Immediately send another !seal: expect a short cooldown reply and no new stored seal. After ten seconds, send again. The default third seal is allowed; the fourth gets the per-user limit reply.
+6. Add a test word to data/blocked-words.txt, then send it from a viewer with remaining allowance: expect rejection and no count increase. Remove the test word afterward.
+7. Lock sealing from the dashboard. Another !seal should get No capsule is open for sealing right now. Counts remain intact, and you can create another capsule starting at seal #1.
+8. Test moderator-message handling using a moderator account distinct from the bot: the seal is stored, the message stays in chat, and the bot explains the limitation.
+9. Run npm test, npm run typecheck, npm run lint, and npm run build. The automated suite covers parsing, Unicode limits/blocked words, cooldown/limits, sequential numbering under overlapping callbacks, restart idempotency, batching, exact-message deletion, visibility failures, channel ownership, public-data privacy, and XSS-safe rendering.
+
+Official references: [Delete Chat Messages](https://dev.twitch.tv/docs/api/reference/#delete-chat-messages), [Search Categories](https://dev.twitch.tv/docs/api/reference/#search-categories).
+
 ## Next phase
 
-Phase 4 adds capsule creation, !seal validation/deletion, transactional numbering, reply batching, and the public pre-opening page.
+Phase 5 adds the pure trigger engine, date/follower/category checks, live/offline opening delays, Open now, and Postpone controls.
 
 ## How I used Codex
 

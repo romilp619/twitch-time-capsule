@@ -1,3 +1,7 @@
+import { CapsuleStore } from './capsule/store.js';
+import { BlockedWords } from './capsule/moderation.js';
+import { CapsuleError } from './capsule/model.js';
+import { registerCapsuleRoutes } from './capsule/routes.js';
 import websocket from '@fastify/websocket';
 import type WebSocket from 'ws';
 import { EventLog } from './db/events.js';
@@ -46,6 +50,8 @@ export function buildServer(
     }),
   ]);
   const helix = new HelixClient(auth, dependencies.fetcher);
+  const capsules = new CapsuleStore(db, broadcast, dependencies.now);
+  const blockedWords = new BlockedWords(config.dataDir);
   const runtime =
     dependencies.eventsubEnabled === false
       ? undefined
@@ -55,13 +61,14 @@ export function buildServer(
           log,
           broadcast,
           (live) => connection.setLive(live),
-          dependencies.eventsubOptions,
+          { ...dependencies.eventsubOptions, capsules, blockedWords },
         );
   const connection = new TwitchConnection(auth, helix, runtime);
   const snapshot = () => ({
     type: 'snapshot',
     connection: connection.snapshot(),
     events: log.latest(),
+    capsules: capsules.list(),
   });
   function broadcast(): void {
     if (closing || queued) return;
@@ -119,7 +126,7 @@ export function buildServer(
   });
   app.setErrorHandler((error, _request, reply) => {
     const status =
-      error instanceof TwitchError
+      error instanceof TwitchError || error instanceof CapsuleError
         ? error.status >= 400
           ? error.status
           : 502
@@ -130,8 +137,8 @@ export function buildServer(
           : 500;
     void reply.code(status).send({
       error:
-        error instanceof TwitchError
-          ? safeMessage(error)
+        error instanceof TwitchError || error instanceof CapsuleError
+          ? error.message
           : status === 400 || status === 413
             ? 'Invalid request.'
             : 'The operation failed. Check local storage permissions and try again.',
@@ -153,6 +160,13 @@ export function buildServer(
         .code(403)
         .send({ error: 'Open the dashboard using the configured BASE_URL.' });
   };
+  registerCapsuleRoutes(app, {
+    store: capsules,
+    auth,
+    helix,
+    log,
+    requireAdmin,
+  });
   const roleBody = z.object({ role: z.enum(roles) }).strict();
   app.register(websocket, { options: { maxPayload: 1024 } });
   app.register(async (instance) => {
@@ -185,7 +199,7 @@ export function buildServer(
 
   app.get('/health', () => {
     db.prepare('SELECT 1').get();
-    return { status: 'ok', app: 'time-capsule', phase: 3, database: 'ok' };
+    return { status: 'ok', app: 'time-capsule', phase: 4, database: 'ok' };
   });
   app.get('/', async (_request, reply) => reply.redirect('/health'));
   app.get('/dashboard', async (request, reply) => {
@@ -209,7 +223,17 @@ export function buildServer(
         ),
       );
   });
-  // These two static assets contain no account data or private keys.
+  app.get('/dashboard/capsules.js', async (_request, reply) =>
+    reply
+      .type('text/javascript; charset=utf-8')
+      .send(
+        readFileSync(
+          resolve(projectRoot, 'public/dashboard/capsules.js'),
+          'utf8',
+        ),
+      ),
+  );
+  // These static assets contain no account data or private keys.
   app.get('/dashboard/app.js', async (_request, reply) =>
     reply
       .type('text/javascript; charset=utf-8')

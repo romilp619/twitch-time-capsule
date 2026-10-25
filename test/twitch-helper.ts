@@ -29,6 +29,13 @@ export function json(
 export class FakeTwitch {
   isMod = false;
   dropMessages = false;
+  deleteStatus = 204;
+  deletedMessages: Array<{
+    broadcaster_id: string | null;
+    moderator_id: string | null;
+    message_id: string | null;
+  }> = [];
+
   sentMessages: Array<{
     broadcaster_id: string;
     sender_id: string;
@@ -98,6 +105,29 @@ export class FakeTwitch {
         expires_in: this.expiresIn,
       });
     }
+    if (
+      url.pathname === '/helix/moderation/chat' &&
+      init?.method === 'DELETE'
+    ) {
+      this.deletedMessages.push({
+        broadcaster_id: url.searchParams.get('broadcaster_id'),
+        moderator_id: url.searchParams.get('moderator_id'),
+        message_id: url.searchParams.get('message_id'),
+      });
+      return this.deleteStatus === 204
+        ? new Response(null, { status: 204 })
+        : json({ message: 'provider detail' }, this.deleteStatus);
+    }
+    if (url.pathname === '/helix/search/categories')
+      return json({
+        data: [
+          {
+            id: '32982',
+            name: 'Grand Theft Auto V',
+            box_art_url: 'https://example.invalid/art',
+          },
+        ],
+      });
     if (url.pathname === '/helix/eventsub/subscriptions') {
       const body = JSON.parse(String(init?.body)) as {
         type: string;

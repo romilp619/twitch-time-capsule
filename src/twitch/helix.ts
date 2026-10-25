@@ -121,6 +121,38 @@ export class HelixClient {
       return readJson(response, schema);
     }
   }
+  async deleteChatMessage(
+    broadcasterId: string,
+    moderatorId: string,
+    messageId: string,
+  ): Promise<void> {
+    // message_id must never be omitted: Twitch would clear the entire chat.
+    if (!broadcasterId || !moderatorId || !messageId)
+      throw new TwitchError(
+        400,
+        'A specific chat message ID is required for deletion.',
+      );
+    await this.request('bot', '/moderation/chat', z.undefined(), {
+      method: 'DELETE',
+      expectedUserId: moderatorId,
+      query: {
+        broadcaster_id: broadcasterId,
+        moderator_id: moderatorId,
+        message_id: messageId,
+      },
+    });
+  }
+  async searchCategories(query: string) {
+    const result = await this.request(
+      'streamer',
+      '/search/categories',
+      z.object({
+        data: z.array(z.object({ id: z.string(), name: z.string() })),
+      }),
+      { query: { query, first: '20' } },
+    );
+    return result.data;
+  }
   async currentUser(role: AccountRole): Promise<TwitchUser> {
     const result = await this.request(role, '/users', usersSchema);
     const user = result.data[0];

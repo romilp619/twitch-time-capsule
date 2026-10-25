@@ -17,6 +17,7 @@ export default tseslint.config(
     languageOptions: {
       globals: {
         document: 'readonly',
+        navigator: 'readonly',
         location: 'readonly',
         history: 'readonly',
         URL: 'readonly',

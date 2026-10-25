@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Time Capsule</title>
+    <link rel="stylesheet" href="/capsule/style.css" />
+    <script src="/capsule/app.js" defer></script>
+  </head>
+  <body>
+    <main class="public-shell">
+      <header>
+        <span class="brand-icon" aria-hidden="true"></span
+        ><span>TIME CAPSULE</span>
+      </header>
+      <p id="public-status" class="muted" role="status" aria-live="polite">
+        Loading capsule...
+      </p>
+      <section id="capsule-details" hidden>
+        <p class="eyebrow" id="channel-name"></p>
+        <h1 id="capsule-title"></h1>
+        <p id="capsule-condition" class="condition"></p>
+        <p id="date-countdown" class="countdown"></p>
+        <div class="capsule-art" aria-hidden="true"><span></span></div>
+        <section class="count-panel" aria-label="Capsule progress">
+          <strong id="sealed-count">0</strong><span>MESSAGES SEALED</span>
+          <p id="capsule-state"></p>
+        </section>
+        <section id="how-to-seal" class="how-to">
+          <h2>Send a little something to the future.</h2>
+          <p>In channel chat, type:</p>
+          <code>!seal your message</code>
+          <p id="seal-limits"></p>
+          <a
+            id="chat-link"
+            class="chat-link"
+            target="_blank"
+            rel="noopener noreferrer"
+            >Open Twitch chat &#8599;</a
+          >
+          <p class="privacy-note">
+            Messages may be visible briefly before the bot deletes them.
+            Moderator and broadcaster messages remain visible in Twitch chat.
+            This page never shows sealed message contents.
+          </p>
+        </section>
+        <p id="closed-note" class="closed-note" hidden></p>
+      </section>
+      <footer>SEALED TODAY. REVEALED WHEN IT MATTERS.</footer>
+    </main>
+  </body>
+</html>

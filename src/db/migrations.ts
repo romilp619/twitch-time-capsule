@@ -73,6 +73,15 @@ export const migrations: readonly Migration[] = [
       );
     `,
   },
+  {
+    version: 2,
+    name: 'capsule_channel_identity',
+    sql: `
+      ALTER TABLE capsules ADD COLUMN broadcaster_id TEXT NOT NULL DEFAULT '';
+      ALTER TABLE capsules ADD COLUMN channel_login TEXT NOT NULL DEFAULT '';
+      ALTER TABLE capsules ADD COLUMN channel_name TEXT NOT NULL DEFAULT '';
+    `,
+  },
 ];
 
 export function migrateDatabase(

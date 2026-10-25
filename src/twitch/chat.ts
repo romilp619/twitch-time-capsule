@@ -1,3 +1,5 @@
+import type { CapsuleCommands } from '../capsule/commands.js';
+import type { SendContext } from '../capsule/replies.js';
 import { setTimeout as delay } from 'node:timers/promises';
 import { z } from 'zod';
 import { TwitchAuth } from './auth.js';
@@ -31,11 +33,12 @@ export class ChatSender {
     private readonly helix: HelixClient,
     private readonly now: () => number = Date.now,
   ) {}
-  send(text: string): Promise<string> {
-    const expectedBroadcaster = this.auth.publicAccount('streamer').userId;
-    const expectedSender = this.auth.publicAccount(
-      this.auth.effectiveRole('bot'),
-    ).userId;
+  send(text: string, context?: SendContext): Promise<string> {
+    const expectedBroadcaster =
+      context?.broadcasterId ?? this.auth.publicAccount('streamer').userId;
+    const expectedSender =
+      context?.senderId ??
+      this.auth.publicAccount(this.auth.effectiveRole('bot')).userId;
 
     const work = this.tail.then(async () => {
       const message = truncateChat(text.trim());
@@ -112,6 +115,7 @@ export class ChatCommands {
     private readonly sender: ChatSender,
     private readonly log: EventLog,
     private readonly now: () => number = Date.now,
+    private readonly capsules?: CapsuleCommands,
   ) {
     this.dedupe = new MessageDedupe(now);
   }
@@ -126,12 +130,16 @@ export class ChatCommands {
       messageId: event.message_id,
       self,
     });
-    if (self || !/^!capsule\s*$/i.test(event.message.text.trim())) return;
+    if (self) return;
+    if (this.capsules && (await this.capsules.handle(event, senderId))) return;
+    if (!/^!capsule\s*$/i.test(event.message.text.trim())) return;
     const now = this.now();
     if (now - this.lastCapsuleAt < 30_000) return;
     this.lastCapsuleAt = now;
     try {
-      const message = 'No capsule is open for sealing right now.';
+      const message =
+        this.capsules?.describe(event.broadcaster_user_id) ??
+        'No capsule is open for sealing right now.';
       const messageId = await this.sender.send(message);
       this.log.write('chat.sent', { message, messageId });
     } catch (error) {

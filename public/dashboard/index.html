@@ -6,6 +6,7 @@
     <title>Time Capsule - Connection</title>
     <link rel="stylesheet" href="/dashboard/style.css" />
     <script src="/dashboard/app.js" defer></script>
+    <script src="/dashboard/capsules.js" defer></script>
   </head>
   <body>
     <div class="shell">
@@ -118,6 +119,136 @@
           <summary>Event subscriptions &amp; keepalive</summary>
           <div id="subscription-list"></div>
         </details>
+
+        <section class="capsules-section" aria-labelledby="capsules-title">
+          <div class="log-header">
+            <h2 id="capsules-title">Capsules</h2>
+            <span class="metadata"
+              >A message today. A moment to come back to.</span
+            >
+          </div>
+          <div id="capsule-feedback" role="status" aria-live="polite"></div>
+          <div class="capsule-workspace">
+            <form id="capsule-form" class="capsule-form">
+              <h3>Create a time capsule</h3>
+              <label for="capsule-title">Title</label
+              ><input
+                id="capsule-title"
+                name="title"
+                required
+                maxlength="120"
+                placeholder="GTA 6 predictions"
+              />
+              <label for="capsule-trigger">Opening condition</label>
+              <select id="capsule-trigger" name="trigger">
+                <option value="manual">When I choose</option>
+                <option value="date">On a date</option>
+                <option value="followers">At a follower goal</option>
+                <option value="category">First stream in a category</option>
+              </select>
+              <div id="trigger-date" hidden>
+                <label for="capsule-date">Opening date (your local time)</label
+                ><input
+                  id="capsule-date"
+                  type="datetime-local"
+                  required
+                  disabled
+                />
+              </div>
+              <div id="trigger-followers" hidden>
+                <label for="capsule-followers">Follower goal</label
+                ><input
+                  id="capsule-followers"
+                  type="number"
+                  min="1"
+                  max="1000000000"
+                  step="1"
+                  required
+                  disabled
+                />
+              </div>
+              <div id="trigger-category" hidden>
+                <label for="category-query">Search Twitch categories</label
+                ><input
+                  id="category-query"
+                  autocomplete="off"
+                  minlength="2"
+                  maxlength="100"
+                  required
+                  disabled
+                  placeholder="Grand Theft Auto"
+                />
+                <div
+                  id="category-results"
+                  class="category-results"
+                  aria-live="polite"
+                ></div>
+              </div>
+              <details class="capsule-settings">
+                <summary>Limits &amp; Prophet rewards</summary>
+                <div class="field-pair">
+                  <div>
+                    <label for="capsule-limit">Seals per viewer</label
+                    ><input
+                      id="capsule-limit"
+                      type="number"
+                      min="1"
+                      max="100"
+                      step="1"
+                      value="3"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label for="capsule-length">Maximum length</label
+                    ><input
+                      id="capsule-length"
+                      type="number"
+                      min="3"
+                      max="280"
+                      step="1"
+                      value="280"
+                      required
+                    />
+                  </div>
+                </div>
+                <label class="checkbox-label"
+                  ><input id="capsule-vip" type="checkbox" /> Reward Prophets
+                  with VIP</label
+                ><label for="capsule-vip-days">VIP days</label
+                ><input
+                  id="capsule-vip-days"
+                  type="number"
+                  min="1"
+                  max="365"
+                  step="1"
+                  value="30"
+                  required
+                />
+                <p class="metadata">
+                  Reward preferences are saved here. Opening ceremonies and VIP
+                  grants arrive in later build phases.
+                </p>
+              </details>
+              <button
+                id="create-capsule"
+                class="primary"
+                type="submit"
+                disabled
+              >
+                Create capsule
+              </button>
+              <p id="capsule-form-note" class="metadata">
+                Connect the streamer account to create a capsule.
+              </p>
+            </form>
+            <div
+              id="capsule-list"
+              class="capsule-list"
+              aria-label="Your capsules"
+            ></div>
+          </div>
+        </section>
         <section class="log-section" aria-labelledby="log-title">
           <div class="log-header">
             <h2 id="log-title">Channel activity</h2>

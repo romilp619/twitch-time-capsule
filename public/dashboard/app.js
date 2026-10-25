@@ -44,6 +44,8 @@ async function api(path, method = 'GET', body) {
 function render(state) {
   renderEventSub(state.eventsub);
   currentState = state;
+  globalThis.capsuleConnectionState = state;
+  globalThis.setCapsuleConnection?.(state);
   const warnings = document.getElementById('warnings');
   warnings.replaceChildren();
   for (const warning of [
@@ -151,12 +153,14 @@ document.getElementById('refresh').addEventListener('click', () => {
 async function poll() {
   if (busy || dashboardSocket?.readyState === 1) return;
   try {
-    const [state, events] = await Promise.all([
+    const [state, events, capsuleData] = await Promise.all([
       api('/api/connection'),
       api('/api/events'),
+      api('/api/capsules'),
     ]);
     render(state);
     renderEvents(events);
+    globalThis.renderCapsules?.(capsuleData.capsules);
   } catch (error) {
     feedback.replaceChildren();
     banner(
@@ -261,6 +265,7 @@ function connectDashboard() {
         return;
       render(packet.connection);
       renderEvents(packet.events);
+      globalThis.renderCapsules?.(packet.capsules ?? []);
     } catch {
       document.getElementById('dashboard-updates').textContent =
         'Could not read an update. Reconnecting...';

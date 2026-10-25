@@ -1,3 +1,6 @@
+import { CapsuleCommands } from '../capsule/commands.js';
+import type { CapsuleStore } from '../capsule/store.js';
+import type { BlockedWords } from '../capsule/moderation.js';
 import { z } from 'zod';
 import { TwitchAuth, type AccountRole } from './auth.js';
 import { HelixClient } from './helix.js';
@@ -31,6 +34,9 @@ const followSchema = broadcasterSchema.extend({
   user_login: z.string().max(100),
 });
 export interface RuntimeOptions {
+  capsules?: CapsuleStore;
+  blockedWords?: BlockedWords;
+  batchWindowMs?: number;
   url?: string;
   retryDelayMs?: number;
   welcomeTimeoutMs?: number;
@@ -46,6 +52,7 @@ export class TwitchRuntime {
   private readonly tasks = new Set<Promise<void>>();
   private readonly sender: ChatSender;
   private readonly commands: ChatCommands;
+  private readonly capsuleCommands: CapsuleCommands | undefined;
   private stopped = false;
   private setupError: string | null = null;
   constructor(
@@ -57,7 +64,26 @@ export class TwitchRuntime {
     private readonly options: RuntimeOptions = {},
   ) {
     this.sender = new ChatSender(auth, helix);
-    this.commands = new ChatCommands(this.sender, log);
+    this.capsuleCommands =
+      options.capsules && options.blockedWords
+        ? new CapsuleCommands(
+            options.capsules,
+            options.blockedWords,
+            this.sender,
+            (broadcasterId, senderId, messageId) =>
+              helix.deleteChatMessage(broadcasterId, senderId, messageId),
+            log,
+            auth.config.baseUrl,
+            Date.now,
+            options.batchWindowMs,
+          )
+        : undefined;
+    this.commands = new ChatCommands(
+      this.sender,
+      log,
+      Date.now,
+      this.capsuleCommands,
+    );
   }
   snapshot() {
     const connections = [...this.clients.values()].map((entry) => ({
@@ -73,6 +99,7 @@ export class TwitchRuntime {
       entry.error ? [entry.role + ': ' + entry.error] : [],
     );
     if (this.setupError) warnings.push(this.setupError);
+    warnings.push(...(this.capsuleCommands?.warnings ?? []));
     return {
       status: allConnected
         ? 'connected'
@@ -257,6 +284,7 @@ export class TwitchRuntime {
     for (const entry of this.clients.values()) entry.client.stop();
     this.clients.clear();
     await Promise.allSettled([...this.tasks]);
+    await this.capsuleCommands?.close();
     await this.sender.close();
   }
 }
