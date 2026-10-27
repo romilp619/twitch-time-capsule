@@ -91,6 +91,17 @@ export const migrations: readonly Migration[] = [
       CREATE UNIQUE INDEX one_opening_capsule ON capsules(status) WHERE status = 'opening';
     `,
   },
+  {
+    version: 4,
+    name: 'ceremony_runtime',
+    sql: `
+      CREATE TABLE ceremony_runtime (
+        id INTEGER PRIMARY KEY CHECK (id = 1),
+        state TEXT NOT NULL CHECK (json_valid(state)),
+        settings TEXT NOT NULL CHECK (json_valid(settings))
+      );
+    `,
+  },
 ];
 
 export function migrateDatabase(

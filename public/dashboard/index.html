@@ -3,10 +3,12 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Time Capsule - Connection</title>
+    <title>Time Capsule - Dashboard</title>
+    <link rel="stylesheet" href="/dashboard/ceremony.css" />
     <link rel="stylesheet" href="/dashboard/style.css" />
     <script src="/dashboard/app.js" defer></script>
     <script src="/dashboard/capsules.js" defer></script>
+    <script src="/dashboard/ceremony.js" defer></script>
   </head>
   <body>
     <div class="shell">
@@ -226,8 +228,8 @@
                   required
                 />
                 <p class="metadata">
-                  Reward preferences are saved here. Opening ceremonies and VIP
-                  grants arrive in later build phases.
+                  Reward preferences are saved here. VIP grants arrive in Phase
+                  7.
                 </p>
               </details>
               <button
@@ -248,6 +250,133 @@
               aria-label="Your capsules"
             ></div>
           </div>
+        </section>
+        <section class="ceremony-section" aria-labelledby="ceremony-title">
+          <div class="section-heading">
+            <h2 id="ceremony-title">Opening ceremony</h2>
+            <span id="ceremony-stage" class="badge">WAITING</span>
+          </div>
+          <p id="ceremony-summary" class="muted">
+            Waiting for a capsule to open.
+          </p>
+          <div id="ceremony-feedback" role="status" aria-live="polite"></div>
+          <div id="ceremony-warnings" aria-live="polite"></div>
+          <div id="ceremony-controls" hidden>
+            <p id="ceremony-counts" class="metadata"></p>
+            <div class="actions">
+              <button id="reveal-next" class="primary" type="button">
+                Reveal next · N
+              </button>
+              <button id="auto-reveal" class="secondary" type="button">
+                Start auto-reveal
+              </button>
+              <button id="end-ceremony" class="secondary" type="button">
+                End ceremony
+              </button>
+            </div>
+            <p class="metadata">
+              Only approved messages can be revealed. Press N when you are not
+              typing in a field. Ending the ceremony clears the overlay.
+            </p>
+            <div class="queue-tools">
+              <label for="queue-filter">Show messages</label>
+              <select id="queue-filter">
+                <option value="pending">Pending</option>
+                <option value="approved">Approved</option>
+                <option value="rejected">Rejected</option>
+                <option value="revealed">Revealed</option>
+                <option value="all">All</option>
+              </select>
+              <button id="queue-refresh" type="button" class="secondary">
+                Refresh queue
+              </button>
+            </div>
+            <div
+              id="mod-queue"
+              class="mod-queue"
+              aria-label="Private moderation queue"
+            ></div>
+            <div class="queue-pagination">
+              <button id="queue-prev" type="button" class="secondary">
+                Previous</button
+              ><span id="queue-page" class="metadata"></span
+              ><button id="queue-next" type="button" class="secondary">
+                Next
+              </button>
+            </div>
+          </div>
+        </section>
+        <section class="ceremony-section" aria-labelledby="overlay-title">
+          <div class="section-heading">
+            <h2 id="overlay-title">Your OBS overlay</h2>
+            <button id="preview-overlay" type="button" class="secondary">
+              Play 10-second preview
+            </button>
+          </div>
+          <p class="muted">
+            Empty and transparent between ceremonies. The preview uses sample
+            messages and does not change your capsules.
+          </p>
+          <label for="obs-url">Private OBS Browser Source URL</label>
+          <div class="overlay-url-row">
+            <input id="obs-url" type="text" readonly /><button
+              id="copy-obs-url"
+              type="button"
+              class="secondary"
+            >
+              Copy OBS URL
+            </button>
+          </div>
+          <p class="metadata">
+            Use 1920 × 1080. Turn off “Shutdown source when not visible” and
+            “Refresh browser when scene becomes active”. Keep this URL private.
+          </p>
+          <form id="overlay-settings" class="overlay-settings">
+            <div>
+              <label for="overlay-side">Card side</label
+              ><select id="overlay-side">
+                <option value="right">Right</option>
+                <option value="left">Left</option>
+              </select>
+            </div>
+            <div>
+              <label for="overlay-scale">Card size</label
+              ><select id="overlay-scale">
+                <option value="0.85">Small · 85%</option>
+                <option value="1">Medium · 100%</option>
+                <option value="1.15">Large · 115%</option>
+              </select>
+            </div>
+            <div>
+              <label for="auto-seconds">Auto-reveal interval</label
+              ><input
+                id="auto-seconds"
+                type="number"
+                min="3"
+                max="60"
+                step="1"
+                value="8"
+                required
+              />
+            </div>
+            <button class="secondary" id="save-overlay-settings" type="submit">
+              Save settings
+            </button>
+          </form>
+          <details class="overlay-monitor">
+            <summary>Show overlay monitor</summary>
+            <p class="metadata">
+              The checkerboard is only the dashboard background. The OBS overlay
+              itself is transparent.
+            </p>
+            <div class="monitor-background">
+              <iframe
+                id="overlay-monitor"
+                title="Time Capsule overlay monitor"
+                referrerpolicy="no-referrer"
+              ></iframe>
+            </div>
+          </details>
         </section>
         <section class="log-section" aria-labelledby="log-title">
           <div class="log-header">

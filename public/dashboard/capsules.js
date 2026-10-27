@@ -189,19 +189,23 @@ function renderCapsules(capsules) {
     timing.className = 'opening-timing';
     timing.textContent =
       capsule.status === 'opening'
-        ? 'Opening started. The animation and message reveal controls arrive in Phase 6.'
-        : capsule.postponedUntil &&
-            Date.parse(capsule.postponedUntil) > Date.now()
-          ? 'Postponed until ' +
-            new Date(capsule.postponedUntil).toLocaleString() +
-            '. Opening also requires a live stream.'
-          : capsule.status === 'ready'
-            ? capsule.openingDueAt
-              ? 'Scheduled to open at ' +
-                new Date(capsule.openingDueAt).toLocaleTimeString() +
-                '. Postpone to delay.'
-              : 'Ready. Waiting for a live stream, then the configured settling-in delay.'
-            : 'Open now overrides the condition. Postpone delays opening by 10 minutes. Both keep the live-stream requirement.';
+        ? 'Opening started. Use the ceremony controls below to approve and reveal messages.'
+        : capsule.status === 'opened'
+          ? 'Ceremony finished. Messages and reveal decisions are preserved.'
+          : capsule.status === 'archived'
+            ? 'Archived. Existing messages are preserved.'
+            : capsule.postponedUntil &&
+                Date.parse(capsule.postponedUntil) > Date.now()
+              ? 'Postponed until ' +
+                new Date(capsule.postponedUntil).toLocaleString() +
+                '. Opening also requires a live stream.'
+              : capsule.status === 'ready'
+                ? capsule.openingDueAt
+                  ? 'Scheduled to open at ' +
+                    new Date(capsule.openingDueAt).toLocaleTimeString() +
+                    '. Postpone to delay.'
+                  : 'Ready. Waiting for a live stream, then the configured settling-in delay.'
+                : 'Open now overrides the condition. Postpone delays opening by 10 minutes. Both keep the live-stream requirement.';
     card.append(timing);
     if (capsule.visibleCount > 0) {
       const warning = document.createElement('p');

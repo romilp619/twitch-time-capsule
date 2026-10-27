@@ -1,3 +1,5 @@
+import { Ceremony } from './capsule/ceremony.js';
+import { registerCeremonyRoutes } from './capsule/ceremony-routes.js';
 import { TriggerScheduler } from './capsule/scheduler.js';
 import { CapsuleStore } from './capsule/store.js';
 import { BlockedWords } from './capsule/moderation.js';
@@ -41,6 +43,7 @@ export function buildServer(
   let closing = false;
   let queued = false;
   const peers = new Set<WebSocket>();
+  const overlayPeers = new Set<WebSocket>();
   const log = new EventLog(db, broadcast, () => [
     config.adminKey,
     config.overlayKey,
@@ -52,6 +55,15 @@ export function buildServer(
   ]);
   const helix = new HelixClient(auth, dependencies.fetcher);
   const capsules = new CapsuleStore(db, broadcast, dependencies.now);
+  const blockedWords = new BlockedWords(config.dataDir);
+  const ceremony = new Ceremony(
+    db,
+    capsules,
+    blockedWords,
+    log,
+    broadcast,
+    dependencies.now,
+  );
   const triggers = new TriggerScheduler(
     capsules,
     auth,
@@ -60,8 +72,8 @@ export function buildServer(
     broadcast,
     config.offlineOpenDelaySeconds * 1000,
     dependencies.now,
+    (id) => ceremony.begin(id),
   );
-  const blockedWords = new BlockedWords(config.dataDir);
   const runtime =
     dependencies.eventsubEnabled === false
       ? undefined
@@ -81,13 +93,20 @@ export function buildServer(
     connection: { ...connection.snapshot(), triggers: triggers.snapshot() },
     events: log.latest(),
     capsules: capsules.list(),
+    ceremony: { ...ceremony.dashboard(), overlayClients: overlayPeers.size },
   });
   function broadcast(): void {
     if (closing || queued) return;
     queued = true;
     queueMicrotask(() => {
       queued = false;
-      if (closing || peers.size === 0) return;
+      if (closing) return;
+      const overlayPayload = JSON.stringify(ceremony.overlay());
+      for (const socket of overlayPeers) {
+        if (socket.bufferedAmount > 256 * 1024) socket.terminate();
+        else if (socket.readyState === 1) socket.send(overlayPayload);
+      }
+      if (peers.size === 0) return;
       const payload = JSON.stringify(snapshot());
       for (const socket of peers) {
         if (socket.bufferedAmount > 256 * 1024) socket.terminate();
@@ -118,11 +137,14 @@ export function buildServer(
   });
   app.addHook('onReady', async () => {
     await connection.start();
+    ceremony.start();
     triggers.start();
   });
   app.addHook('onClose', async () => {
     closing = true;
     for (const socket of peers) socket.terminate();
+    for (const socket of overlayPeers) socket.terminate();
+    ceremony.close();
     await triggers.close();
     await connection.close();
     db.close();
@@ -134,7 +156,7 @@ export function buildServer(
     reply.header('X-Frame-Options', 'DENY');
     reply.header(
       'Content-Security-Policy',
-      `default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self' ${new URL(config.baseUrl).origin.replace(/^http/, 'ws')}; base-uri 'none'; form-action 'none'; frame-ancestors 'none'`,
+      `default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self' ${new URL(config.baseUrl).origin.replace(/^http/, 'ws')}; base-uri 'none'; form-action 'none'; frame-src 'self'; frame-ancestors 'none'`,
     );
   });
   app.setNotFoundHandler((_request, reply) => {
@@ -184,9 +206,50 @@ export function buildServer(
     log,
     requireAdmin,
   });
+  const overlayUrl =
+    config.baseUrl + '/overlay?key=' + encodeURIComponent(config.overlayKey);
+  registerCeremonyRoutes(app, ceremony, requireAdmin, overlayUrl);
+  const requireOverlay = async (
+    request: FastifyRequest,
+    reply: FastifyReply,
+  ) => {
+    const query = z
+      .object({ key: z.string().max(1024) })
+      .safeParse(request.query);
+    if (!query.success || !constantEqual(query.data.key, config.overlayKey))
+      return reply
+        .code(401)
+        .send({ error: 'A valid overlay key is required.' });
+  };
   const roleBody = z.object({ role: z.enum(roles) }).strict();
   app.register(websocket, { options: { maxPayload: 1024 } });
   app.register(async (instance) => {
+    instance.get(
+      '/ws/overlay',
+      {
+        websocket: true,
+        preValidation: async (request, reply) => {
+          await requireOverlay(request, reply);
+          if (reply.sent) return;
+          if (request.headers.origin !== new URL(config.baseUrl).origin)
+            return reply
+              .code(403)
+              .send({ error: 'Overlay origin is not allowed.' });
+        },
+      },
+      (socket) => {
+        overlayPeers.add(socket);
+        const remove = () => {
+          overlayPeers.delete(socket);
+          broadcast();
+        };
+        socket.on('close', remove);
+        socket.on('error', remove);
+        socket.send(JSON.stringify(ceremony.overlay()));
+        broadcast();
+      },
+    );
+
     instance.get(
       '/ws/dashboard',
       {
@@ -216,8 +279,39 @@ export function buildServer(
 
   app.get('/health', () => {
     db.prepare('SELECT 1').get();
-    return { status: 'ok', app: 'time-capsule', phase: 5, database: 'ok' };
+    return { status: 'ok', app: 'time-capsule', phase: 6, database: 'ok' };
   });
+  app.get('/overlay', { preHandler: requireOverlay }, (_request, reply) => {
+    reply.header('X-Frame-Options', 'SAMEORIGIN');
+    reply.header(
+      'Content-Security-Policy',
+      `default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self' ${new URL(config.baseUrl).origin.replace(/^http/, 'ws')}; base-uri 'none'; form-action 'none'; frame-ancestors 'self'`,
+    );
+    return reply
+      .type('text/html; charset=utf-8')
+      .send(
+        readFileSync(resolve(projectRoot, 'public/overlay/index.html'), 'utf8'),
+      );
+  });
+  app.get('/api/overlay/state', { preHandler: requireOverlay }, () =>
+    ceremony.overlay(),
+  );
+  for (const [url, file, type] of [
+    ['/overlay/app.js', 'public/overlay/app.js', 'text/javascript'],
+    ['/overlay/style.css', 'public/overlay/style.css', 'text/css'],
+    [
+      '/dashboard/ceremony.js',
+      'public/dashboard/ceremony.js',
+      'text/javascript',
+    ],
+    ['/dashboard/ceremony.css', 'public/dashboard/ceremony.css', 'text/css'],
+  ]) {
+    app.get(url!, (_request, reply) =>
+      reply
+        .type(type! + '; charset=utf-8')
+        .send(readFileSync(resolve(projectRoot, file!), 'utf8')),
+    );
+  }
   app.get('/', async (_request, reply) => reply.redirect('/health'));
   app.get('/dashboard', async (request, reply) => {
     const query = z

@@ -4,7 +4,7 @@ Time Capsule lets Twitch viewers seal free-text predictions and messages, then r
 
 ## Build status
 
-**Phase 5: opening triggers.** All four opening conditions now run against Twitch facts. The app handles live/offline delays, authenticated Open now and Postpone controls, moderator !capsule open, saved schedules, and public follower progress. Capsule creation, private sealing, deletion, numbering, and reply batching remain available. The animation, mod queue, and message reveals arrive in Phase 6; VIP rewards arrive in Phase 7. The original specification is in [CODEX_PROMPT.md](./CODEX_PROMPT.md).
+**Phase 6: ceremony and overlay.** The app now includes the transparent keyed OBS page, opening animation, private approval queue, manual/hotkey/auto reveals, saved card settings, reconnect restoration, and an isolated ten-second preview. Triggers and sealed-message storage remain available. Prophets and VIP actions arrive in Phase 7. The original specification is in [CODEX_PROMPT.md](./CODEX_PROMPT.md).
 
 ## Quick start
 
@@ -19,10 +19,10 @@ npm run dev
 Open [http://localhost:3000/health](http://localhost:3000/health). Expected JSON:
 
 ```json
-{ "status": "ok", "app": "time-capsule", "phase": 5, "database": "ok" }
+{ "status": "ok", "app": "time-capsule", "phase": 6, "database": "ok" }
 ```
 
-The health server and dashboard start without Twitch credentials and show a setup warning. A fresh start creates data/time-capsule.db and two different random keys in data/keys.json. Open the private dashboard URL printed at startup. The overlay arrives in Phase 6.
+The health server and dashboard start without Twitch credentials and show a setup warning. A fresh start creates data/time-capsule.db and two different random keys in data/keys.json. Open the private dashboard URL printed at startup. The overlay URL is also printed at startup.
 
 ### This WSL workspace
 
@@ -67,8 +67,8 @@ SQLite uses foreign keys, WAL, a five-second busy timeout, and numbered migratio
 flowchart LR
   Twitch["Twitch OAuth + Helix + EventSub"] --> Server["Fastify / TypeScript"]
   Server --> DB["SQLite + migrations"]
-  Server --> Dashboard["Dashboard + mod queue (planned)"]
-  Server --> Overlay["OBS overlay via WebSocket (planned)"]
+  Server --> Dashboard["Dashboard + mod queue"]
+  Server --> Overlay["OBS overlay via WebSocket"]
   Server --> Public["Public capsule page"]
   Demo["Fake Twitch story (planned)"] --> Server
 ```
@@ -210,7 +210,7 @@ When a condition is reached during a live stream, opening waits 5 seconds. A cap
 
 **Postpone 10 min** keeps the original condition and saves a ten-minute opening delay. Before the condition is reached, sealing can continue. Once ready, the capsule stays ready during the postponement. Restarting the app preserves the postponement and all seals, verifies current Twitch facts, and starts a fresh live settling delay where necessary. **Open now** overrides both the condition and postponement, waits five seconds if live, or waits for the next live stream if offline. It always respects the live requirement.
 
-Opening controls are shown for sealing, locked, and ready capsules. Archive can cancel a ready capsule. Once opening starts, it remains opening until the Phase 6 ceremony controls are implemented. Other ready capsules wait their turn. This phase never reveals message text.
+Opening controls are shown for sealing, locked, and ready capsules. Archive can cancel a ready capsule. Once opening starts, use the Phase 6 ceremony controls to approve, reveal, and end. Other ready capsules wait their turn. This phase never reveals message text.
 
 The dashboard shows current follower totals, category, live state, opening time, postponement, and errors. The public page adds the current follower total for follower goals while keeping viewer identities and sealed contents private. The three new fields readyAt, openingDueAt, and postponedUntil are private dashboard metadata.
 
@@ -229,7 +229,7 @@ npm run dev
 3. Go live in the other category; this capsule must stay sealing. Change the Twitch stream category to the selected one. Expect **READY**, then **OPENING** after about five seconds. Changing the category while offline does not trigger it.
 4. To test an offline-ready delay, make a manual/date/follower capsule ready while offline, then go live. Expect it to wait the configured 60 seconds. Postpone before its deadline to delay it.
 5. Test moderator **!capsule open** with a moderator account different from the effective sending account. Ordinary viewers and VIPs cannot use it. In single-account mode, use the dashboard: the streamer's own chat commands are ignored to prevent loops.
-6. The public page must continue to show counts and no sealed contents. At OPENING it says the opening has started. The OBS animation, approvals, and reveal controls are specifically Phase 6.
+6. The public page must continue to show counts and no sealed contents. At OPENING it says the opening has started. Use the ceremony section for approvals and reveals.
 
 For fast, account-free automated acceptance checks, run `npm test -- test/triggers.test.ts test/scheduler.test.ts test/trigger-routes.test.ts`. These use fake Twitch HTTP and a real local mock EventSub WebSocket server to cover category IDs, all trigger types, timing, permissions, missed offline events, event/snapshot races, postponement persistence, and privacy.
 
@@ -237,9 +237,53 @@ New private controls: POST /api/capsules/:id/open and POST /api/capsules/:id/pos
 
 New Helix reads use the streamer user token: [Get Channel Information](https://dev.twitch.tv/docs/api/reference/#get-channel-information) supplies game_id/game_name and [Get Channel Followers](https://dev.twitch.tv/docs/api/reference/#get-channel-followers) supplies total. Only the total is retained; no follower list is stored. Existing moderator:read:followers consent covers the follower endpoint; no new dependencies or scopes are added.
 
+## Ceremony and OBS overlay (Phase 6)
+
+When the trigger engine moves a capsule to opening, the server starts a six-second opening animation, then waits in the moderation queue. The overlay shows only a small corner header while waiting. Each Reveal next action takes the lowest-numbered approved message, marks it revealed, and sends it to the overlay. Pending and rejected messages are never sent to OBS. The three newest cards stay visible; older ones slide away. End ceremony fades the overlay to empty and sets the capsule to opened.
+
+The ceremony state, most recent revealed card IDs, approvals, timestamps, side, card size, and auto-reveal interval are saved in SQLite by migration 4. Reloading OBS or reconnecting its WebSocket restores the current stage and revealed cards. Restarting resumes the ceremony and any enabled auto-reveal, using approved messages only. No catch-up burst is played. If the app starts with an opening capsule left by Phase 5, it adopts that capsule and starts its ceremony; an empty capsule can be ended immediately.
+
+### Add the overlay in OBS
+
+1. Run the app, open the private dashboard URL printed at startup, and find **Your OBS overlay**.
+2. Click **Copy OBS URL**. It is http://localhost:3000/overlay?key= followed by your private OVERLAY_KEY, also printed at startup.
+3. In OBS, choose **Sources → + → Browser**, name it Time Capsule, and paste the URL. Place this source **above** your game/window capture.
+4. Set Width **1920** and Height **1080**. Keep **Shutdown source when not visible** OFF and **Refresh browser source when scene becomes active** OFF. Default transparent Custom CSS can stay as it is.
+5. Click **Play 10-second preview** in the dashboard. It plays an opening and sample cards, then returns to a completely empty overlay. You do not need to go live for the preview.
+6. The dashboard's optional **Show overlay monitor** displays the same view on a checkerboard. The checkerboard belongs to the dashboard; it is not included in the OBS page.
+
+The source is fully transparent with no rendered content outside a ceremony. The opening uses CSS gold capsule halves and light rays; reduced-motion preferences disable animation. Message contents and display names use textContent exclusively. A lost connection hides old overlay content until a fresh snapshot arrives. The OBS page needs its overlay key; WebSocket upgrades also require the configured origin. That key cannot approve messages or access the dashboard.
+
+See the official [OBS Browser Source properties](https://obsproject.com/kb/browser-source) for URL, viewport, transparency, shutdown, and refresh settings.
+
+### Moderation and reveal controls
+
+The private queue is available while a ceremony is active. Filter by pending, approved, rejected, revealed, or all, with pages of 50 messages. A flagged label identifies matches against the current blocked-word file, including terms added after the seal was stored. Flagging does not approve or reveal anything; the moderator decides whether to approve or reject it. Revealed messages cannot be changed back to another status.
+
+- **Reveal next · N** reveals only the next approved message. The N hotkey is ignored while typing, using modifier keys, or holding the key down.
+- **Start auto-reveal** uses the saved 3–60 second interval and pauses when no approved messages remain.
+- **Card side** can be left or right; **Card size** can be 85%, 100%, or 115%.
+- **End ceremony** stops auto-reveal, clears the overlay, and preserves all messages and decisions.
+- **Play 10-second preview** uses sample messages in memory only. It does not touch real seals, approvals, Twitch chat, or capsule status. End an active real ceremony before previewing.
+
+Public capsule pages remain metadata and counts only, including after a ceremony ends. Revealed text is available through the private dashboard and keyed OBS view. Public publication is not enabled in this phase. Prophet stamps and VIP actions arrive in Phase 7.
+
+### Phase 6 acceptance check
+
+1. Refresh the dashboard. If the old zero-message GTA 6 capsule is still opening/queued, click **End ceremony** first.
+2. Add the OBS Browser Source using the steps above. Before preview or a ceremony, your underlying capture should remain fully visible.
+3. Click **Play 10-second preview**. Expect the gold opening, sample cards, and then an empty overlay. This works offline. Check left/right, size, and reduced-motion behavior if desired.
+4. For a real reveal, create a new manual capsule. From a viewer account distinct from the sending account, send a few !seal messages. Confirm deletion and the sealed count before opening it.
+5. While the channel is live, click **Open now**. After the five-second trigger delay and six-second opening, the private queue appears. Approve one message, reject another, and click **Reveal next** or press N. Only the approved message should appear on OBS.
+6. Approve several more, save an auto-reveal interval, and start auto-reveal. The newest three cards stay on the selected side. The rejected message must never appear.
+7. Refresh the OBS Browser Source or reopen its private URL. The same revealed cards return. End the ceremony: all overlay content fades out and the capsule becomes opened.
+8. Run npm test, npm run typecheck, npm run lint, and npm run build. Tests cover invalid transitions, moderation ownership, approval gates, auto-reveal, restart persistence, preview isolation, keyed WebSockets, reconnect restoration, transparent idle rendering, and hostile viewer text.
+
+Private HTTP routes: GET /api/ceremony, GET /api/ceremony/queue, POST /api/ceremony/seals/:id, POST /api/ceremony/reveal, POST /api/ceremony/auto, POST /api/ceremony/settings, POST /api/ceremony/end, and POST /api/ceremony/preview. They use existing dashboard authentication and mutation origin checks. The read-only overlay uses /overlay, /api/overlay/state, and /ws/overlay with its separate overlay key. No new dependencies, Twitch scopes, or Twitch API endpoints are added in Phase 6.
+
 ## Next phase
 
-Phase 6 adds the ceremony state machine, transparent OBS overlay, moderator approval queue, reveal controls, hotkeys, and a preview button.
+Phase 7 adds Prophet recognition, came-true stamps, Twitch VIP grant/error handling, the expiry job, and the Wall of Prophets.
 
 ## How I used Codex
 

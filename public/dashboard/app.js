@@ -266,6 +266,8 @@ function connectDashboard() {
       render(packet.connection);
       renderEvents(packet.events);
       globalThis.renderCapsules?.(packet.capsules ?? []);
+      globalThis.ceremonySnapshot = packet.ceremony;
+      globalThis.renderCeremony?.(packet.ceremony);
     } catch {
       document.getElementById('dashboard-updates').textContent =
         'Could not read an update. Reconnecting...';

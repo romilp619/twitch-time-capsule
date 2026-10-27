@@ -28,6 +28,7 @@ export class TriggerScheduler {
     private readonly changed: () => void,
     private readonly offlineDelayMs: number,
     private readonly now: () => number = Date.now,
+    private readonly onOpening?: (id: number) => void,
   ) {}
   snapshot() {
     return {
@@ -194,6 +195,8 @@ export class TriggerScheduler {
           capsule.id,
           this.facts(openingAllowed),
         );
+        if (result.status === 'opening' && capsule.status !== 'opening')
+          this.onOpening?.(result.id);
         if (result.status !== capsule.status)
           this.log.write('capsule.' + result.status, {
             capsuleId: capsule.id,

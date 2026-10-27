@@ -145,6 +145,12 @@ describe('Phase 5 HTTP and EventSub integration', () => {
     for (let i = 0; i < 100 && (await state(c.id)).status !== 'opening'; i++)
       await new Promise((resolve) => setTimeout(resolve, 5));
     expect((await state(c.id)).status).toBe('opening');
+    expect(
+      (await app.inject({ url: '/api/ceremony', headers })).json().ceremony,
+    ).toMatchObject({
+      active: true,
+      state: { capsuleId: c.id, stage: 'opening' },
+    });
     const log = (await app.inject({ url: '/api/events', headers })).json();
     expect(
       log.filter((e: { type: string }) => e.type === 'capsule.opening'),
