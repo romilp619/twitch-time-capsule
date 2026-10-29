@@ -282,10 +282,11 @@ export function buildServer(
     return { status: 'ok', app: 'time-capsule', phase: 6, database: 'ok' };
   });
   app.get('/overlay', { preHandler: requireOverlay }, (_request, reply) => {
+    // OBS injects its default transparent-body stylesheet; allow only its exact hash.
     reply.header('X-Frame-Options', 'SAMEORIGIN');
     reply.header(
       'Content-Security-Policy',
-      `default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self' ${new URL(config.baseUrl).origin.replace(/^http/, 'ws')}; base-uri 'none'; form-action 'none'; frame-ancestors 'self'`,
+      `default-src 'none'; script-src 'self'; style-src 'self' 'sha256-Yd1GhiWi47kUsi/SDfKQTY7E39TboDOQOjTJBsT0GQg='; connect-src 'self' ${new URL(config.baseUrl).origin.replace(/^http/, 'ws')}; base-uri 'none'; form-action 'none'; frame-ancestors 'self'`,
     );
     return reply
       .type('text/html; charset=utf-8')

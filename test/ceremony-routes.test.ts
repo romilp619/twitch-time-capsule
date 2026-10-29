@@ -104,6 +104,23 @@ function denied(url: string, origin: string) {
   });
 }
 describe('Ceremony API and overlay isolation', () => {
+  it('allows the OBS default stylesheet only on the overlay while keeping scripts strict', async () => {
+    const { app, config } = await fixture(false);
+    const overlay = await app.inject('/overlay?key=' + config.overlayKey);
+    const policy = overlay.headers['content-security-policy'];
+    expect(policy).toContain(
+      "style-src 'self' 'sha256-Yd1GhiWi47kUsi/SDfKQTY7E39TboDOQOjTJBsT0GQg='",
+    );
+    expect(policy).toContain("script-src 'self';");
+    expect(policy).not.toContain("'unsafe-inline'");
+    const dashboard = await app.inject('/dashboard?key=' + config.adminKey);
+    expect(dashboard.headers['content-security-policy']).toContain(
+      "style-src 'self';",
+    );
+    expect(dashboard.headers['content-security-policy']).not.toContain(
+      'sha256-',
+    );
+  });
   it('separates admin and overlay keys, rejects missing keys and cross-origin mutations', async () => {
     const { app, config, headers } = await fixture();
     for (const path of [
