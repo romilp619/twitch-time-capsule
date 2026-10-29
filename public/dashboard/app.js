@@ -177,13 +177,15 @@ setInterval(() => {
 
 function renderEventSub(eventsub) {
   document.getElementById('eventsub-status').textContent =
-    eventsub?.status === 'connected'
-      ? 'Connected'
-      : eventsub?.status === 'degraded'
-        ? 'Needs attention'
-        : eventsub?.status === 'connecting'
-          ? 'Connecting...'
-          : 'Not connected';
+    eventsub?.status === 'simulated'
+      ? 'Simulated (demo)'
+      : eventsub?.status === 'connected'
+        ? 'Connected'
+        : eventsub?.status === 'degraded'
+          ? 'Needs attention'
+          : eventsub?.status === 'connecting'
+            ? 'Connecting...'
+            : 'Not connected';
   const list = document.getElementById('subscription-list');
   list.replaceChildren();
   for (const connection of eventsub?.connections ?? []) {
@@ -213,7 +215,10 @@ function renderEventSub(eventsub) {
   if (!eventsub?.connections?.length) {
     const item = document.createElement('p');
     item.className = 'metadata';
-    item.textContent = 'Connect a streamer account to start receiving events.';
+    item.textContent =
+      eventsub?.status === 'simulated'
+        ? 'Demo controls supply simulated events. No real Twitch EventSub connection is used.'
+        : 'Connect a streamer account to start receiving events.';
     list.append(item);
   }
 }

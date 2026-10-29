@@ -15,7 +15,7 @@ async function main(): Promise<void> {
   try {
     await app.listen({ host: config.host, port: config.port });
     console.log(
-      `Time Capsule - Phase 7\nHealth: ${config.baseUrl}/health\nDashboard: ${config.baseUrl}/dashboard?key=${config.adminKey}\nOBS overlay: ${config.baseUrl}/overlay?key=${config.overlayKey}\nSQLite: ${config.databasePath}`,
+      `Time Capsule - Phase 8\nHealth: ${config.baseUrl}/health\nDashboard: ${config.baseUrl}/dashboard?key=${config.adminKey}\nOBS overlay: ${config.baseUrl}/overlay?key=${config.overlayKey}\nSQLite: ${config.databasePath}`,
     );
   } catch (error) {
     await app.close();

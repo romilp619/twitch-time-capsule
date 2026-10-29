@@ -4,7 +4,7 @@ Time Capsule lets Twitch viewers seal free-text predictions and messages, then r
 
 ## Build status
 
-**Phase 7: Prophets and VIP rewards.** Revealed predictions can be marked true in the private dashboard. The overlay stamps them, chat announces recognition, and optional VIP rewards include visible errors, retries, and an expiry job. Opened public capsules show a Wall of Prophets using display names only. No sealed or revealed message text is published by the public page. The original specification is in [CODEX_PROMPT.md](./CODEX_PROMPT.md).
+**Phase 8: account-free demo mode.** `npm run demo` starts an isolated fake Twitch instance with 20 sample viewers, opening controls, the real dashboard and transparent overlay, and an automatic 90-second story. It never reads your real `.env`, tokens, keys, or database and never sends requests to Twitch. Phases 1–7 remain available in normal mode. The original specification is in [CODEX_PROMPT.md](./CODEX_PROMPT.md).
 
 ## Quick start
 
@@ -13,13 +13,15 @@ Use Node.js 20.19+ (Node 24 recommended) and npm. Run these commands from the pr
 ```sh
 npm ci
 npm test
-npm run dev
+npm run demo
 ```
 
-Open [http://localhost:3000/health](http://localhost:3000/health). Expected JSON:
+Open the **Demo:** URL printed in the terminal, normally [http://localhost:3000/demo](http://localhost:3000/demo). Click **Play full story**. No Twitch account or `.env` is needed. If your real app already occupies port 3000, the demo uses port 3001; choose another with `npm run demo -- --port=3002`. Each demo run starts with a fresh database under `data/demo/run-*/`.
+
+For the real app, run `npm run dev` and open [http://localhost:3000/health](http://localhost:3000/health). Expected JSON:
 
 ```json
-{ "status": "ok", "app": "time-capsule", "phase": 7, "database": "ok" }
+{ "status": "ok", "app": "time-capsule", "phase": 8, "database": "ok" }
 ```
 
 The health server and dashboard start without Twitch credentials and show a setup warning. A fresh start creates data/time-capsule.db and two different random keys in data/keys.json. Open the private dashboard URL printed at startup. The overlay URL is also printed at startup.
@@ -38,16 +40,16 @@ Use Linux npm inside WSL rather than a Windows npm installation. The runtime and
 
 ## Commands
 
-| Command           | Purpose                                                    |
-| ----------------- | ---------------------------------------------------------- |
-| npm run dev       | Watch TypeScript and restart the health server             |
-| npm run build     | Compile strict TypeScript into dist/                       |
-| npm start         | Run the compiled server (build first)                      |
-| npm test          | Run Vitest once                                            |
-| npm run typecheck | Check application and test TypeScript                      |
-| npm run lint      | Run ESLint and Prettier checks                             |
-| npm run format    | Apply Prettier formatting                                  |
-| npm run demo      | Reserved for Phase 8; currently exits with a clear message |
+| Command           | Purpose                                        |
+| ----------------- | ---------------------------------------------- |
+| npm run dev       | Watch TypeScript and restart the health server |
+| npm run build     | Compile strict TypeScript into dist/           |
+| npm start         | Run the compiled server (build first)          |
+| npm test          | Run Vitest once                                |
+| npm run typecheck | Check application and test TypeScript          |
+| npm run lint      | Run ESLint and Prettier checks                 |
+| npm run format    | Apply Prettier formatting                      |
+| npm run demo      | Start the isolated account-free demo           |
 
 For a production-style check, stop the dev server, run npm run build, then npm start. Press Ctrl+C to stop either server cleanly.
 
@@ -70,7 +72,7 @@ flowchart LR
   Server --> Dashboard["Dashboard + mod queue"]
   Server --> Overlay["OBS overlay via WebSocket"]
   Server --> Public["Public capsule page"]
-  Demo["Fake Twitch story (planned)"] --> Server
+  Demo["Isolated fake Twitch + 90-second story"] --> Server
 ```
 
 src/config.ts loads settings and private keys. src/server.ts builds a testable server; src/index.ts starts it and handles shutdown. src/db/ owns schema migrations and database setup. src/twitch/auth.ts owns OAuth state, private tokens, validation, and refresh. src/twitch/helix.ts handles authenticated requests and bounded rate-limit retries. src/twitch/connection.ts maintains dashboard status and the hourly job. src/capsule/triggers.ts contains the pure state transition function; src/capsule/scheduler.ts owns polling, verified Twitch facts, and deadlines. public/dashboard/ contains dependency-free HTML, CSS, and JavaScript.
@@ -307,9 +309,72 @@ After **End ceremony**, the public page shows up to 100 Prophet display names, w
 
 Private routes: GET /api/prophets (50-row pages, limit capped at 100), POST /api/prophets/seals/:id/came-true, POST /api/prophets/seals/:id/retry-vip, POST /api/prophets/seals/:id/retry-chat, and POST /api/prophets/expiry. All require the admin key; browser mutations also check Origin. The overlay key cannot use these routes. `src/capsule/prophets.ts` owns persistence and expiry; ceremony state and rendering remain separate.
 
+## Account-free demo (Phase 8)
+
+`npm run demo` runs the same capsule store, seal commands, trigger scheduler, approval queue, ceremony, overlay, and Prophet reward service against `src/demo/fake-twitch.ts`. Its fetch-compatible fake validates fictional credentials, returns synthetic channel facts, records message deletion and chat replies, and grants/removes fake VIP roles. Unknown requests fail locally; there is no fallback to real networking. `src/demo/controller.ts` supplies normalized chat messages and simulated live/category/follower events to the existing commands and scheduler. Real EventSub socket handling remains separately tested by Vitest and the CLI check below.
+
+The demo always binds 127.0.0.1. It starts on port 3000 when available, otherwise 3001, and prints its exact URL. Use `npm run demo -- --port=3002` to choose another port. It ignores `.env` and environment overrides for accounts, keys, and storage. Each process gets a fresh database, fictional token file, and different keys under `data/demo/run-*/`; previous runs are preserved. Normal `npm run dev` continues using your original `data/` files. Stop the demo with Ctrl+C. Both modes can run at the same time on different ports.
+
+### Demo controls
+
+The page embeds a 1920×1080 OBS overlay above an original, fictional coastal driving illustration, with the real streamer dashboard alongside it on desktop. Narrow screens stack the panels. The sample scene is locally authored SVG artwork, not footage or assets from Grand Theft Auto VI. There are no remote images, fonts, media, or AI services to load.
+
+- **Play full story:** in about 90 seconds, 20 viewers seal predictions, a week of simulated time passes, the stream goes live in a different category, and the category changes to the synthetic Grand Theft Auto VI entry. After the normal five-second trigger delay and six-second animation, messages are approved and three highlights are revealed. One comes true, receives fake VIP, and is announced in simulated chat. The ceremony ends and the public Wall of Prophets is ready. The other predictions remain private.
+- **Stop story:** stops future story steps, preserving capsules and messages so you can continue manually. Manual controls are disabled while the automatic story runs.
+- **Create new demo capsule:** choose category, date, or follower goal. Earlier waiting demo capsules are archived with their messages preserved; an active ceremony is ended first.
+- **Send fake !seal messages:** seals one message from each of 20 sample viewers through the production command/deletion/reply batching pipeline. Repeating this control does not duplicate them.
+- **Fast-forward the date:** advances the simulated clock for a date capsule. It becomes ready while offline and still waits for **Go live**. Demo offline settling time is five seconds; normal mode keeps its configured delay.
+- **Go live**, **Simulate the category change to Grand Theft Auto VI**, and **Reach 1,000 followers** update the synthetic facts. Category comparison still uses IDs; the demo ID `900000001` is deliberately fictional.
+- **Approve pending messages**, **Reveal next**, **Mark latest Came true**, and **End ceremony** use the normal ceremony/reward services. You can also explore those controls in the embedded dashboard.
+
+The demo header, dashboard banner, EventSub label, gameplay scene, fake VIP count, and simulated chat all identify the fake environment. Demo-only routes exist only on the demo server. `/api/demo` exposes only fictional state and demo links; mutations require its separate demo key and the same-origin check. The real dashboard retains its frame restriction. Only the demo dashboard permits same-origin embedding. The public wall still shows display names only, without publishing message text.
+
+### Phase 8 acceptance check
+
+1. In this WSL workspace, run `cd ~/hackathon_projects/time-capsule`, `export PATH="$PWD/.tools/node/bin:$PATH"`, then `npm run demo`. On other machines, use your installed Node.js and npm.
+2. Open the printed **Demo:** URL. You should see the fictional gameplay scene, transparent overlay, streamer dashboard, and controls without logging into Twitch.
+3. Click **Play full story** and wait about 90 seconds. Counts reach 20, the category premiere opens the capsule, three approved cards appear, and one gets a green CAME TRUE stamp, gold PROPHET badge, and fake VIP announcement. At completion the overlay is empty again. **View public capsule** shows the Wall of Prophets.
+4. Start the story again, then stop it. Create a date capsule, send sample seals, fast-forward the date, and confirm it waits offline. Go live and wait about eleven seconds for the opening delay and animation. Approve, reveal, mark true, and end manually.
+5. Your normal dashboard on its original port should still have its saved real capsules and accounts. No real Twitch messages or roles change during the demo.
+6. Run `npm test`, `npm run typecheck`, `npm run lint`, and `npm run build`. Demo tests cover the full story using a controlled clock, independent data/keys, ignoring a real `.env`, blocked outbound networking, control authentication, manual scenarios, stopping/restarting, and sealed-text privacy.
+
+### Test the production EventSub client with Twitch CLI
+
+Verified locally with **twitch-cli/1.1.24**. Install Twitch CLI from the official [Twitch CLI setup guide](https://dev.twitch.tv/docs/cli/). No account/token setup is needed for this mock test. The optional `npm run test:cli` harness uses the actual `EventSubClient` class, connects only to loopback, and creates its mock subscription with placeholder headers rather than real credentials.
+
+Check the available flags:
+
+```sh
+twitch event --help
+twitch event websocket start-server --help
+twitch event trigger channel.update --help
+```
+
+In terminal 1:
+
+```sh
+twitch event websocket start-server --require-subscription
+```
+
+In terminal 2, from this project:
+
+```sh
+npm run test:cli
+```
+
+Wait for **CLI subscription ready: channel.update v2**. In terminal 3:
+
+```sh
+twitch event trigger channel.update --transport=websocket --version=2 --to-user=10001 --game-id=900000001 --item-name="Grand Theft Auto VI"
+```
+
+The CLI should report **Forwarded**, and terminal 2 should print **CLI notification** with `category_id` set to `900000001` and `category_name` set to `Grand Theft Auto VI`. The strict mock subscription uses broadcaster `10001` and channel.update version 2. The mock WebSocket is `ws://127.0.0.1:8080/ws`; the subscription endpoint is `http://127.0.0.1:8080/eventsub/subscriptions`. See the official [WebSocket event testing guide](https://dev.twitch.tv/docs/cli/websocket-event-command/). This is a socket-client check, separate from the `/demo` story; it does not connect to or mutate your real channel. Stop both long-running commands with Ctrl+C.
+
+In this workspace, the checksum-verified CLI binary is kept in ignored `.tools/twitch-cli/twitch-cli_1.1.24_Linux_x86_64/twitch`; add its folder to PATH if `twitch` is not globally installed. The CLI binary is not required for the demo, tests, or a fresh clone.
+
 ## Next phase
 
-Phase 8 adds an account-free demo mode and Play full story. It has not been started.
+Phase 9 covers final visual polish, accessibility, release documentation, and fresh-clone checks. It has not been started.
 
 ## How I used Codex
 

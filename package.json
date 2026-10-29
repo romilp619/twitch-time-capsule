@@ -16,7 +16,8 @@
     "demo": "tsx src/demo/index.ts",
     "lint": "eslint . && prettier --check .",
     "format": "prettier --write .",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test:cli": "tsx src/demo/cli.ts"
   },
   "dependencies": {
     "@fastify/websocket": "^11.3.4",

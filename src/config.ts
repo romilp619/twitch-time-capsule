@@ -128,8 +128,10 @@ function readKeys(path: string): z.infer<typeof keySchema> {
 export function loadConfig(
   env: NodeJS.ProcessEnv = process.env,
   root = projectRoot,
+  options: { readEnvFile?: boolean } = {},
 ) {
-  loadDotEnv({ path: resolve(root, '.env'), processEnv: env, quiet: true });
+  if (options.readEnvFile !== false)
+    loadDotEnv({ path: resolve(root, '.env'), processEnv: env, quiet: true });
   const values = parseEnvironment(env);
   const dataDir = resolve(root, values.DATA_DIR);
   mkdirSync(dataDir, { recursive: true, mode: 0o700 });

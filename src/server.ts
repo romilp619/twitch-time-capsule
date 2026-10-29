@@ -1,3 +1,4 @@
+import type { ServerExtension } from './server-extension.js';
 import { Prophets } from './capsule/prophets.js';
 import { registerProphetRoutes } from './capsule/prophet-routes.js';
 import { ChatSender } from './twitch/chat.js';
@@ -36,6 +37,7 @@ export function buildServer(
   config: AppConfig,
   dependencies: {
     fetcher?: TwitchFetch;
+    extension?: ServerExtension;
     now?: () => number;
     eventsubEnabled?: boolean;
     eventsubOptions?: RuntimeOptions;
@@ -116,9 +118,15 @@ export function buildServer(
   const connection = new TwitchConnection(auth, helix, runtime, (live) =>
     triggers.sync(live),
   );
+  const connectionSnapshot = () => {
+    const state = connection.snapshot();
+    return dependencies.extension?.mode === 'demo'
+      ? { ...state, eventsub: { ...state.eventsub, status: 'simulated' } }
+      : state;
+  };
   const snapshot = () => ({
     type: 'snapshot',
-    connection: { ...connection.snapshot(), triggers: triggers.snapshot() },
+    connection: { ...connectionSnapshot(), triggers: triggers.snapshot() },
     events: log.latest(),
     capsules: capsules.list(),
     ceremony: { ...ceremony.dashboard(), overlayClients: overlayPeers.size },
@@ -164,15 +172,18 @@ export function buildServer(
           },
   });
   app.addHook('onReady', async () => {
+    await dependencies.extension?.initialize();
     await connection.start();
     await prophets.start();
     ceremony.start();
     triggers.start();
+    await dependencies.extension?.ready();
   });
   app.addHook('onClose', async () => {
     closing = true;
     for (const socket of peers) socket.terminate();
     for (const socket of overlayPeers) socket.terminate();
+    await dependencies.extension?.close();
     ceremony.close();
     await prophets.close();
     await sender.close();
@@ -180,14 +191,17 @@ export function buildServer(
     await connection.close();
     db.close();
   });
-  app.addHook('onRequest', async (_request, reply) => {
+  app.addHook('onRequest', async (request, reply) => {
+    const demoFrame =
+      dependencies.extension?.mode === 'demo' &&
+      request.url.split('?')[0] === '/dashboard';
     reply.header('Cache-Control', 'no-store');
     reply.header('Referrer-Policy', 'no-referrer');
     reply.header('X-Content-Type-Options', 'nosniff');
-    reply.header('X-Frame-Options', 'DENY');
+    reply.header('X-Frame-Options', demoFrame ? 'SAMEORIGIN' : 'DENY');
     reply.header(
       'Content-Security-Policy',
-      `default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self' ${new URL(config.baseUrl).origin.replace(/^http/, 'ws')}; base-uri 'none'; form-action 'none'; frame-src 'self'; frame-ancestors 'none'`,
+      `default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self' ${new URL(config.baseUrl).origin.replace(/^http/, 'ws')}; base-uri 'none'; form-action 'none'; frame-src 'self'; img-src 'self'; frame-ancestors ${demoFrame ? "'self'" : "'none'"}`,
     );
   });
   app.setNotFoundHandler((_request, reply) => {
@@ -241,6 +255,23 @@ export function buildServer(
     config.baseUrl + '/overlay?key=' + encodeURIComponent(config.overlayKey);
   registerCeremonyRoutes(app, ceremony, requireAdmin, overlayUrl);
   registerProphetRoutes(app, prophets, requireAdmin);
+  dependencies.extension?.register(
+    app,
+    {
+      auth,
+      helix,
+      sender,
+      connection,
+      capsules,
+      blockedWords,
+      triggers,
+      ceremony,
+      prophets,
+      log,
+      changed: broadcast,
+    },
+    requireAdmin,
+  );
   const requireOverlay = async (
     request: FastifyRequest,
     reply: FastifyReply,
@@ -311,7 +342,13 @@ export function buildServer(
 
   app.get('/health', () => {
     db.prepare('SELECT 1').get();
-    return { status: 'ok', app: 'time-capsule', phase: 7, database: 'ok' };
+    return {
+      status: 'ok',
+      app: 'time-capsule',
+      phase: 8,
+      database: 'ok',
+      ...(dependencies.extension ? { mode: 'demo' } : {}),
+    };
   });
   app.get('/overlay', { preHandler: requireOverlay }, (_request, reply) => {
     // OBS injects its default transparent-body stylesheet; allow only its exact hash.
@@ -369,6 +406,11 @@ export function buildServer(
         readFileSync(
           resolve(projectRoot, 'public/dashboard/index.html'),
           'utf8',
+        ).replace(
+          '<main>',
+          dependencies.extension?.mode === 'demo'
+            ? '<main><p class="banner success">DEMO · Fake Twitch account, messages, and VIP rewards. No real channel is connected.</p>'
+            : '<main>',
         ),
       );
   });
@@ -401,7 +443,7 @@ export function buildServer(
       ),
   );
   app.get('/api/connection', { preHandler: requireAdmin }, () => ({
-    ...connection.snapshot(),
+    ...connectionSnapshot(),
     triggers: triggers.snapshot(),
   }));
   app.get('/api/events', { preHandler: requireAdmin }, () => log.latest());
@@ -418,6 +460,11 @@ export function buildServer(
     '/api/auth/start',
     { preHandler: requireAdmin },
     async (request, reply) => {
+      if (dependencies.extension?.mode === 'demo')
+        throw new CapsuleError(
+          409,
+          'Demo accounts are simulated. Use the demo controls.',
+        );
       const body = roleBody.safeParse(request.body);
       if (!body.success)
         return reply.code(400).send({ error: 'Choose streamer or bot.' });
@@ -439,6 +486,11 @@ export function buildServer(
     '/api/auth/disconnect',
     { preHandler: requireAdmin },
     async (request, reply) => {
+      if (dependencies.extension?.mode === 'demo')
+        throw new CapsuleError(
+          409,
+          'Demo accounts are simulated. Use the demo controls.',
+        );
       const body = roleBody.safeParse(request.body);
       if (!body.success)
         return reply.code(400).send({ error: 'Choose streamer or bot.' });

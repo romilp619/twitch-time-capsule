@@ -1,0 +1,176 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Time Capsule - Interactive demo</title>
+    <link rel="stylesheet" href="/demo/style.css" />
+    <script src="/demo/app.js" defer></script>
+  </head>
+  <body>
+    <main class="demo-shell">
+      <header class="masthead">
+        <a href="/demo" class="brand"
+          ><span class="brand-icon" aria-hidden="true"></span>TIME CAPSULE</a
+        ><span class="demo-pill">INTERACTIVE DEMO - NO ACCOUNT NEEDED</span>
+      </header>
+      <section class="intro">
+        <div>
+          <p class="eyebrow">A MESSAGE TODAY. A MOMENT TO COME BACK TO.</p>
+          <h1>Chat saw it coming.</h1>
+          <p class="lead">
+            Seal a prediction. Let time pass. Open it together.<br />See the
+            whole story in 90 seconds.
+          </p>
+        </div>
+        <div class="intro-action">
+          <button class="primary" id="play-story" type="button">
+            Play full story <span aria-hidden="true">&#8599;</span></button
+          ><button class="quiet" id="stop-story" type="button" disabled>
+            Stop story
+          </button>
+          <p class="fine">
+            All viewers, chat messages, and VIP rewards are simulated.
+          </p>
+        </div>
+      </section>
+      <div id="demo-feedback" role="status" aria-live="polite"></div>
+      <section class="story-bar" aria-label="Story progress">
+        <div class="story-line">
+          <span id="story-state" class="tag">READY</span
+          ><strong id="story-headline">Loading your demo...</strong
+          ><span id="story-time">0:00 / 1:30</span>
+        </div>
+        <progress
+          id="story-progress"
+          max="90000"
+          value="0"
+          aria-label="Full story progress"
+        ></progress>
+        <div class="milestones">
+          <span>01 - Seal</span><span>02 - Wait</span><span>03 - Reveal</span
+          ><span>04 - Become a Prophet</span>
+        </div>
+      </section>
+      <div class="experience-grid">
+        <section class="preview-panel" aria-labelledby="preview-title">
+          <div class="panel-heading">
+            <div>
+              <p class="eyebrow">WHAT VIEWERS SEE</p>
+              <h2 id="preview-title">A quiet overlay. A big reveal.</h2>
+            </div>
+            <span id="live-badge" class="tag">OFFLINE</span>
+          </div>
+          <div class="game-frame">
+            <img
+              src="/demo/gameplay.svg"
+              alt="Illustrated fictional coastal driving game used as a simulated gameplay background"
+            />
+            <div class="game-hud">
+              <span>SIMULATED GAMEPLAY</span
+              ><span id="game-category">Just Chatting</span>
+            </div>
+            <iframe
+              id="demo-overlay"
+              title="Live Time Capsule overlay at 1920 by 1080"
+              width="1920"
+              height="1080"
+              referrerpolicy="no-referrer"
+            ></iframe>
+          </div>
+          <div class="stats">
+            <div>
+              <span>MESSAGES SEALED</span><strong id="demo-count">0</strong>
+            </div>
+            <div>
+              <span>CAPSULE</span><strong id="capsule-state">SEALING</strong>
+            </div>
+            <div>
+              <span>FAKE VIP REWARDS</span><strong id="vip-count">0</strong>
+            </div>
+          </div>
+          <div class="controls">
+            <div class="panel-heading">
+              <h2>Take the controls</h2>
+              <span class="fine">Or let the full story play.</span>
+            </div>
+            <div class="scenario-row">
+              <label for="demo-scenario">Opening condition</label
+              ><select id="demo-scenario">
+                <option value="category">First stream in a category</option>
+                <option value="date">On a date</option>
+                <option value="followers">At 1,000 followers</option></select
+              ><button data-action="new" type="button">
+                Create new demo capsule
+              </button>
+            </div>
+            <div class="button-grid">
+              <button data-action="seals" type="button">
+                Send fake !seal messages</button
+              ><button data-action="date" type="button">
+                Fast-forward the date</button
+              ><button data-action="live" type="button">Go live</button
+              ><button data-action="category" type="button">
+                Simulate the category change to Grand Theft Auto VI</button
+              ><button data-action="followers" type="button">
+                Reach 1,000 followers</button
+              ><button data-action="approve" type="button">
+                Approve pending messages</button
+              ><button data-action="reveal" type="button">Reveal next</button
+              ><button data-action="prophet" type="button">
+                Mark latest Came true</button
+              ><button data-action="end" type="button">End ceremony</button>
+            </div>
+            <p id="demo-hint" class="fine">
+              Start by sending sample seals. The overlay stays empty while the
+              capsule waits.
+            </p>
+          </div>
+          <div class="chat-panel">
+            <div class="panel-heading">
+              <h2>Capsule keeper's chat</h2>
+              <span class="demo-pill">SIMULATED</span>
+            </div>
+            <ol id="demo-chat" aria-label="Simulated chat announcements"></ol>
+          </div>
+        </section>
+        <aside class="dashboard-panel">
+          <div class="panel-heading">
+            <div>
+              <p class="eyebrow">WHAT THE STREAMER SEES</p>
+              <h2>Your control room</h2>
+            </div>
+            <a id="open-dashboard" target="_blank" rel="noopener"
+              >Open dashboard &#8599;</a
+            >
+          </div>
+          <iframe
+            id="demo-dashboard"
+            title="Interactive streamer dashboard with fake Twitch data"
+            referrerpolicy="no-referrer"
+          ></iframe>
+          <div class="wall-callout">
+            <p class="eyebrow">REMEMBER THE ONES WHO KNEW</p>
+            <h2>The Wall of Prophets</h2>
+            <p>
+              After the ceremony, correct predictions earn a place in your
+              community's history.
+            </p>
+            <a
+              id="demo-public"
+              class="public-link"
+              target="_blank"
+              rel="noopener"
+              hidden
+              >View public capsule &#8599;</a
+            >
+          </div>
+        </aside>
+      </div>
+      <footer>
+        <span>SEALED TODAY. REVEALED WHEN IT MATTERS.</span
+        ><span>Demo data is separate from your real channel.</span>
+      </footer>
+    </main>
+  </body>
+</html>
