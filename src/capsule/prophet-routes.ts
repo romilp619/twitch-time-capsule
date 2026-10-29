@@ -22,6 +22,23 @@ export function registerProphetRoutes(
       throw new CapsuleError(400, 'Choose a valid Prophet page.');
     return prophets.list(parsed.data.offset, parsed.data.limit);
   });
+  app.delete('/api/prophets', { preHandler: requireAdmin }, async () => ({
+    deleted: await prophets.deletePredictions(),
+  }));
+  app.delete(
+    '/api/prophets/seals/:id',
+    { preHandler: requireAdmin },
+    async (request) => {
+      const parsed = z
+        .object({
+          id: z.coerce.number().int().positive().max(Number.MAX_SAFE_INTEGER),
+        })
+        .safeParse(request.params);
+      if (!parsed.success)
+        throw new CapsuleError(400, 'Choose a revealed prediction.');
+      return { deleted: await prophets.deletePredictions(parsed.data.id) };
+    },
+  );
   for (const action of ['came-true', 'retry-vip', 'retry-chat'] as const) {
     app.post(
       '/api/prophets/seals/:id/' + action,

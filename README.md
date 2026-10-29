@@ -389,3 +389,11 @@ Planned operational limitations: the app must be running to catch Twitch events;
 ## License
 
 MIT. See [LICENSE](./LICENSE).
+
+## Delete capsules
+
+Each capsule card has **Delete**, and the list has **Delete all**. Both ask for confirmation before permanently removing capsules, their messages, and their Prophet records. Public capsule links stop working after deletion. Delete all covers the complete database, including cards beyond the 200-card display limit. End an active opening ceremony before deleting its capsule or using Delete all. Deleting an unrelated capsule remains possible.
+
+Deletion does not send chat messages or immediately change Twitch roles. Independent VIP ownership and expiry records are retained so previously granted temporary VIP rewards can still expire. Deletion waits for in-flight reward operations. Capsule and seal IDs are never reused after deletion, protecting new records from stale dashboard requests. Accounts, settings, and activity logs are retained.
+
+The Prophets section also has **Delete** for each revealed prediction and **Delete all** across every page. These remove the revealed message and its Prophet record; the capsule and any unrevealed messages remain. The same confirmation, active-ceremony protection, reward-operation queue, and VIP expiry retention apply.

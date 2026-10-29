@@ -14,6 +14,7 @@ export function registerCapsuleRoutes(
   app: FastifyInstance,
   dependencies: {
     store: CapsuleStore;
+    deleteCapsules: (id?: number) => Promise<number>;
     triggers: TriggerScheduler;
     auth: TwitchAuth;
     helix: HelixClient;
@@ -28,6 +29,27 @@ export function registerCapsuleRoutes(
   app.get('/api/capsules', { preHandler: requireAdmin }, () => ({
     capsules: store.list(),
   }));
+  app.delete('/api/capsules', { preHandler: requireAdmin }, async () => {
+    const deleted = await dependencies.deleteCapsules();
+    log.write('capsule.deleted_all', { count: deleted });
+    return { deleted };
+  });
+  app.delete(
+    '/api/capsules/:id',
+    { preHandler: requireAdmin },
+    async (request) => {
+      const parsed = z
+        .object({
+          id: z.coerce.number().int().positive().max(Number.MAX_SAFE_INTEGER),
+        })
+        .safeParse(request.params);
+      if (!parsed.success)
+        throw new CapsuleError(400, 'Choose a valid capsule.');
+      const deleted = await dependencies.deleteCapsules(parsed.data.id);
+      log.write('capsule.deleted', { capsuleId: parsed.data.id });
+      return { deleted };
+    },
+  );
   app.post(
     '/api/capsules',
     { preHandler: requireAdmin },

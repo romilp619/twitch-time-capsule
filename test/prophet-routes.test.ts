@@ -192,3 +192,131 @@ describe('Prophet API integration', () => {
     ).toBe('granted');
   });
 });
+
+describe('Prediction deletion', () => {
+  it('authenticates both delete actions and rejects a foreign origin or overlay key', async () => {
+    const f = await fixture(false);
+    for (const url of ['/api/prophets', '/api/prophets/seals/1']) {
+      expect((await f.app.inject({ method: 'DELETE', url })).statusCode).toBe(
+        401,
+      );
+      expect(
+        (
+          await f.app.inject({
+            method: 'DELETE',
+            url,
+            headers: { 'x-admin-key': f.config.overlayKey },
+          })
+        ).statusCode,
+      ).toBe(401);
+      expect(
+        (
+          await f.app.inject({
+            method: 'DELETE',
+            url,
+            headers: { ...f.headers, origin: 'https://foreign.invalid' },
+          })
+        ).statusCode,
+      ).toBe(403);
+    }
+  });
+  it('removes a revealed prediction and recognition, preserving the capsule, unrevealed messages and VIP ownership', async () => {
+    const f = await fixture();
+    await f.post('/api/prophets/seals/1/came-true');
+    await f.post('/api/ceremony/end');
+    const calls = f.fake.vipChanges.length;
+    expect(
+      (
+        await f.app.inject({
+          method: 'DELETE',
+          url: '/api/prophets/seals/1',
+          headers: f.headers,
+        })
+      ).json(),
+    ).toEqual({ deleted: 1 });
+    expect(f.store.get(f.capsule.id)?.sealedCount).toBe(2);
+    expect(f.db.prepare('SELECT id FROM prophets').all()).toEqual([]);
+    expect(f.db.prepare('SELECT status FROM vip_awards').all()).toEqual([
+      { status: 'owned' },
+    ]);
+    expect(f.fake.vipChanges).toHaveLength(calls);
+    const publicPage = await f.app.inject(
+      '/api/public/capsules/' + f.capsule.slug,
+    );
+    expect(publicPage.statusCode).toBe(200);
+    expect(publicPage.json().prophets).toEqual([]);
+    expect(
+      (await f.app.inject({ url: '/api/prophets', headers: f.headers })).json()
+        .total,
+    ).toBe(0);
+    expect(
+      (
+        await f.app.inject({
+          method: 'DELETE',
+          url: '/api/prophets/seals/2',
+          headers: f.headers,
+        })
+      ).statusCode,
+    ).toBe(404);
+  });
+  it('clears all pages of revealed predictions without removing unrevealed messages', async () => {
+    const f = await fixture(false);
+    await f.post('/api/ceremony/end');
+    for (let i = 4; i < 65; i++)
+      f.db
+        .prepare(
+          "INSERT INTO seals (capsule_id,number,user_id,user_login,display_name,text,chat_message_id,status) VALUES (?,?,?,?,?,?,?,'revealed')",
+        )
+        .run(
+          f.capsule.id,
+          i,
+          'u' + i,
+          'v' + i,
+          'Viewer',
+          'Prediction',
+          'chat' + i,
+        );
+    expect(
+      (await f.app.inject({ url: '/api/prophets', headers: f.headers })).json()
+        .seals,
+    ).toHaveLength(50);
+    expect(
+      (
+        await f.app.inject({
+          method: 'DELETE',
+          url: '/api/prophets',
+          headers: f.headers,
+        })
+      ).json(),
+    ).toEqual({ deleted: 62 });
+    expect(f.store.get(f.capsule.id)?.sealedCount).toBe(2);
+    expect(
+      (
+        await f.app.inject({
+          method: 'DELETE',
+          url: '/api/prophets',
+          headers: f.headers,
+        })
+      ).json(),
+    ).toEqual({ deleted: 0 });
+  });
+  it('protects the active ceremony and validates IDs before deleting', async () => {
+    const f = await fixture(false);
+    for (const url of ['/api/prophets', '/api/prophets/seals/1'])
+      expect(
+        (await f.app.inject({ method: 'DELETE', url, headers: f.headers }))
+          .statusCode,
+      ).toBe(409);
+    expect(f.store.get(f.capsule.id)?.sealedCount).toBe(3);
+    for (const id of ['x', '0', '1.5', '9007199254740992'])
+      expect(
+        (
+          await f.app.inject({
+            method: 'DELETE',
+            url: '/api/prophets/seals/' + id,
+            headers: f.headers,
+          })
+        ).statusCode,
+      ).toBe(400);
+  });
+});

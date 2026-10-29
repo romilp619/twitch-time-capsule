@@ -239,3 +239,215 @@ describe('Capsule dashboard and public HTTP APIs', () => {
     expect(fake.deletedMessages).toHaveLength(0);
   });
 });
+
+describe('Capsule deletion', () => {
+  it('requires admin access and same-origin requests for both delete actions', async () => {
+    const f = await fixture();
+    await f.app.inject({
+      method: 'POST',
+      url: '/api/capsules',
+      headers: f.headers,
+      payload: createBody,
+    });
+    for (const url of ['/api/capsules/1', '/api/capsules']) {
+      for (const headers of [{}, { 'x-admin-key': f.config.overlayKey }])
+        expect(
+          (await f.app.inject({ method: 'DELETE', url, headers })).statusCode,
+        ).toBe(401);
+      expect(
+        (
+          await f.app.inject({
+            method: 'DELETE',
+            url,
+            headers: { ...f.headers, origin: 'https://untrusted.invalid' },
+          })
+        ).statusCode,
+      ).toBe(403);
+    }
+    expect(
+      (await f.app.inject({ url: '/api/capsules', headers: f.headers })).json()
+        .capsules,
+    ).toHaveLength(1);
+  });
+  it('deletes one capsule and its dependent records while preserving VIP expiry and other capsules', async () => {
+    const f = await fixture();
+    const db = openDatabase(f.config.databasePath);
+    cleanup.push(() => {
+      db.close();
+    });
+    const store = new CapsuleStore(db);
+    const first = store.create(
+      { ...createBody, settings: { vip_reward: true } },
+      { id: '1', login: 'streamer', displayName: 'Streamer' },
+    );
+    const seal = store.acceptSeal({
+      broadcasterId: '1',
+      userId: '701',
+      userLogin: 'viewer',
+      displayName: 'Viewer',
+      text: 'PRIVATE_PREDICTION',
+      chatMessageId: 'one',
+    })!;
+    db.prepare(
+      "UPDATE seals SET status='revealed',revealed_at=? WHERE id=?",
+    ).run(new Date().toISOString(), seal.id);
+    db.prepare(
+      "UPDATE capsules SET status='opened',opened_at=? WHERE id=?",
+    ).run(new Date().toISOString(), first.id);
+    expect(
+      (
+        await f.app.inject({
+          method: 'POST',
+          url: '/api/prophets/seals/' + seal.id + '/came-true',
+          headers: f.headers,
+        })
+      ).statusCode,
+    ).toBe(200);
+    const second = store.create(
+      { ...createBody, title: 'Keep this' },
+      { id: '1', login: 'streamer', displayName: 'Streamer' },
+    );
+    const vipCalls = f.fake.vipChanges.length;
+    expect(
+      (
+        await f.app.inject({
+          method: 'DELETE',
+          url: '/api/capsules/' + first.id,
+          headers: f.headers,
+        })
+      ).json(),
+    ).toEqual({ deleted: 1 });
+    expect(store.get(second.id)).not.toBeNull();
+    expect(
+      db.prepare('SELECT id FROM seals WHERE capsule_id=?').all(first.id),
+    ).toEqual([]);
+    expect(
+      db.prepare('SELECT id FROM prophets WHERE capsule_id=?').all(first.id),
+    ).toEqual([]);
+    expect(db.prepare('SELECT status FROM vip_awards').all()).toEqual([
+      { status: 'owned' },
+    ]);
+    expect(f.fake.vipChanges).toHaveLength(vipCalls);
+    expect(
+      (await f.app.inject('/api/public/capsules/' + first.slug)).statusCode,
+    ).toBe(404);
+    expect((await f.app.inject('/c/' + first.slug)).statusCode).toBe(404);
+    expect(
+      (await f.app.inject({ url: '/api/prophets', headers: f.headers })).json()
+        .total,
+    ).toBe(0);
+    expect(
+      (
+        await f.app.inject({
+          method: 'DELETE',
+          url: '/api/capsules/' + first.id,
+          headers: f.headers,
+        })
+      ).statusCode,
+    ).toBe(404);
+  });
+  it('deletes all records beyond the 200-card display limit and resets an ended ceremony', async () => {
+    const f = await fixture();
+    const db = openDatabase(f.config.databasePath);
+    cleanup.push(() => {
+      db.close();
+    });
+    const store = new CapsuleStore(db);
+    for (let i = 0; i < 205; i++) {
+      const c = store.create(
+        { ...createBody, title: 'Capsule ' + i },
+        { id: '1', login: 'streamer', displayName: 'Streamer' },
+      );
+      store.changeStatus(c.id, 'archive');
+    }
+    db.prepare('UPDATE ceremony_runtime SET state=? WHERE id=1').run(
+      JSON.stringify({
+        capsuleId: 205,
+        stage: 'ended',
+        startedAt: 1,
+        updatedAt: 2,
+        recentSealIds: [],
+        lastRevealAt: null,
+        autoReveal: false,
+        prophetSealId: null,
+      }),
+    );
+    expect(store.list()).toHaveLength(200);
+    expect(
+      (
+        await f.app.inject({
+          method: 'DELETE',
+          url: '/api/capsules',
+          headers: f.headers,
+        })
+      ).json(),
+    ).toEqual({ deleted: 205 });
+    expect(store.list()).toEqual([]);
+    expect(
+      JSON.parse(
+        (
+          db.prepare('SELECT state FROM ceremony_runtime').get() as {
+            state: string;
+          }
+        ).state,
+      ),
+    ).toMatchObject({ stage: 'idle', capsuleId: null });
+    expect(
+      (
+        await f.app.inject({
+          method: 'DELETE',
+          url: '/api/capsules',
+          headers: f.headers,
+        })
+      ).json(),
+    ).toEqual({ deleted: 0 });
+  });
+  it('rejects invalid IDs and leaves all capsules untouched if one is opening', async () => {
+    const f = await fixture();
+    const db = openDatabase(f.config.databasePath);
+    cleanup.push(() => {
+      db.close();
+    });
+    const store = new CapsuleStore(db);
+    const first = store.create(createBody, {
+      id: '1',
+      login: 'streamer',
+      displayName: 'Streamer',
+    });
+    store.changeStatus(first.id, 'archive');
+    const second = store.create(createBody, {
+      id: '1',
+      login: 'streamer',
+      displayName: 'Streamer',
+    });
+    db.prepare("UPDATE capsules SET status='opening' WHERE id=?").run(
+      second.id,
+    );
+    for (const url of ['/api/capsules', '/api/capsules/' + second.id])
+      expect(
+        (await f.app.inject({ method: 'DELETE', url, headers: f.headers }))
+          .statusCode,
+      ).toBe(409);
+    expect(store.list()).toHaveLength(2);
+    for (const id of ['nope', '0', '1.5', '9007199254740992'])
+      expect(
+        (
+          await f.app.inject({
+            method: 'DELETE',
+            url: '/api/capsules/' + id,
+            headers: f.headers,
+          })
+        ).statusCode,
+      ).toBe(400);
+    // An unrelated archive remains deletable while another capsule opens.
+    expect(
+      (
+        await f.app.inject({
+          method: 'DELETE',
+          url: '/api/capsules/' + first.id,
+          headers: f.headers,
+        })
+      ).statusCode,
+    ).toBe(200);
+  });
+});

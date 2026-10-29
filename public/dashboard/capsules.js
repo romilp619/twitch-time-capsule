@@ -31,6 +31,10 @@ async function capsuleApi(path, method = 'GET', body) {
 }
 function updateCapsuleButton() {
   const active = capsuleList.some((capsule) => capsule.status === 'sealing');
+  document.getElementById('delete-all-capsules').disabled =
+    capsuleBusy ||
+    !capsuleList.length ||
+    capsuleList.some((capsule) => capsule.status === 'opening');
   document.getElementById('create-capsule').disabled =
     capsuleBusy || !capsuleConnected || active;
   document.getElementById('capsule-form-note').textContent = !capsuleConnected
@@ -184,6 +188,30 @@ function renderCapsules(capsules) {
       });
       actions.append(button);
     }
+    const remove = document.createElement('button');
+    remove.type = 'button';
+    remove.className = 'delete-capsule';
+    remove.textContent = 'Delete';
+    remove.ariaLabel = 'Delete capsule ' + capsule.title;
+    remove.disabled = capsuleBusy || capsule.status === 'opening';
+    remove.addEventListener('click', () => {
+      if (
+        !globalThis.confirm(
+          'Permanently delete "' +
+            capsule.title +
+            '" and all its messages and Prophet records? This cannot be undone. Granted VIP rewards keep their scheduled expiry.',
+        )
+      )
+        return;
+      void capsuleAction(async () => {
+        await capsuleApi('/api/capsules/' + capsule.id, 'DELETE');
+        await refreshCapsules();
+        capsuleMessage(
+          'Capsule deleted. Its messages and Prophet records have been removed.',
+        );
+      });
+    });
+    actions.append(remove);
     card.append(top, condition, count, owner);
     const timing = document.createElement('p');
     timing.className = 'opening-timing';
@@ -234,7 +262,7 @@ async function refreshCapsules() {
 async function capsuleAction(work) {
   if (capsuleBusy) return;
   capsuleBusy = true;
-  updateCapsuleButton();
+  renderCapsules(capsuleList);
   try {
     await work();
   } catch (error) {
@@ -247,6 +275,23 @@ async function capsuleAction(work) {
     renderCapsules(capsuleList);
   }
 }
+document.getElementById('delete-all-capsules').addEventListener('click', () => {
+  if (capsuleBusy || !capsuleList.length) return;
+  if (
+    !globalThis.confirm(
+      'Permanently delete ALL capsules, including their messages and Prophet records? This cannot be undone. Granted VIP rewards keep their scheduled expiry.',
+    )
+  )
+    return;
+  void capsuleAction(async () => {
+    const result = await capsuleApi('/api/capsules', 'DELETE');
+    await refreshCapsules();
+    capsuleMessage(
+      result.deleted +
+        ' capsule(s) deleted. Their messages and Prophet records have been removed.',
+    );
+  });
+});
 capsuleForm.addEventListener('submit', (event) => {
   event.preventDefault();
   void capsuleAction(async () => {

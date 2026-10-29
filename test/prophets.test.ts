@@ -372,3 +372,30 @@ describe('Prophets and VIP ownership', () => {
     expect(f.ceremony.overlay()).toMatchObject({ stage: 'idle', cards: [] });
   });
 });
+
+it('waits for an in-flight VIP grant before deletion and still expires the retained award', async () => {
+  const f = fixture();
+  let release: (() => void) | undefined;
+  f.twitch.isVip.mockImplementationOnce(async () => {
+    await new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    return false;
+  });
+  const grant = f.prophets.mark(1);
+  await vi.waitFor(() => expect(release).toBeDefined());
+  f.ceremony.end();
+  const deletion = f.prophets.deletePredictions(1);
+  await Promise.resolve();
+  expect(f.store.get(f.capsule.id)?.sealedCount).toBe(1);
+  release!();
+  await grant;
+  expect(await deletion).toBe(1);
+  expect(expiredVipAwards(f.db, f.now())).toEqual([]);
+  f.advance(30 * 86400_000);
+  await f.prophets.expire();
+  expect(f.twitch.changeVip).toHaveBeenLastCalledWith('1', '770', true);
+  expect(f.db.prepare('SELECT status FROM vip_awards').get()).toEqual({
+    status: 'released',
+  });
+});

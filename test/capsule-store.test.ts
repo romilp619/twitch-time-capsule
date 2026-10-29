@@ -241,3 +241,40 @@ describe('Transactional capsules and seals', () => {
     expect(() => store.acceptSeal(seal())).toThrow('No capsule');
   });
 });
+
+it('keeps deleted capsule and seal IDs retired across restarts', () => {
+  const f = fixture();
+  const first = f.store.create(
+    { title: 'First', triggerType: 'manual' },
+    owner,
+  );
+  const original = f.store.acceptSeal(seal())!;
+  expect(f.store.deleteCapsules()).toBe(1);
+  const restored = new CapsuleStore(f.db);
+  const next = restored.create({ title: 'Next', triggerType: 'manual' }, owner);
+  const receipt = restored.acceptSeal(seal())!;
+  expect(next.id).toBeGreaterThan(first.id);
+  expect(receipt.id).toBeGreaterThan(original.id);
+  expect(receipt.number).toBe(1);
+  expect(() => restored.deleteCapsules(first.id)).toThrow('not found');
+  expect(restored.get(next.id)).not.toBeNull();
+});
+it('rolls back capsule deletion if a dependent record cannot be removed', () => {
+  const f = fixture();
+  const capsule = f.store.create(
+    { title: 'Keep', triggerType: 'manual' },
+    owner,
+  );
+  const receipt = f.store.acceptSeal(seal())!;
+  f.db
+    .prepare(
+      'INSERT INTO prophets (capsule_id,seal_id,user_id,user_login) SELECT capsule_id,id,user_id,user_login FROM seals WHERE id=?',
+    )
+    .run(receipt.id);
+  f.db.exec(
+    "CREATE TRIGGER fail_delete BEFORE DELETE ON seals BEGIN SELECT RAISE(ABORT, 'test failure'); END",
+  );
+  expect(() => f.store.deleteCapsules(capsule.id)).toThrow('test failure');
+  expect(f.store.get(capsule.id)?.sealedCount).toBe(1);
+  expect(f.db.prepare('SELECT id FROM prophets').all()).toHaveLength(1);
+});

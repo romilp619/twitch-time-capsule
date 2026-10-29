@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { runInNewContext } from 'node:vm';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { projectRoot } from '../src/config.js';
 class Element {
   textContent = '';
@@ -23,7 +23,10 @@ class Element {
   replaceChildren() {
     this.children = [];
   }
-  addEventListener() {}
+  listeners: Record<string, () => void> = {};
+  addEventListener(type: string, listener: () => void) {
+    this.listeners[type] = listener;
+  }
   querySelectorAll() {
     return [];
   }
@@ -178,4 +181,72 @@ describe('Capsule page escaping', () => {
         ?.textContent,
     ).toBe(attack);
   });
+});
+
+it('asks for confirmation before either delete action and sends no request when canceled', () => {
+  const context = dom();
+  const confirm = vi.fn(() => false);
+  const fetch = vi.fn(() => new Promise(() => {}));
+  const capsule = {
+    id: 1,
+    title: 'Keep me',
+    slug: 'keep',
+    status: 'archived',
+    triggerType: 'manual',
+    channel: { login: 'streamer' },
+    createdAt: new Date().toISOString(),
+    sealedCount: 1,
+    visibleCount: 0,
+  };
+  runInNewContext(
+    readFileSync(resolve(projectRoot, 'public/dashboard/capsules.js'), 'utf8') +
+      '\nrenderCapsules(' +
+      JSON.stringify([capsule]) +
+      ');',
+    { ...context, confirm, fetch },
+  );
+  fetch.mockClear();
+  const card = context.get('capsule-list').children[0]!;
+  const actions = card.children.at(-1)!;
+  actions.children.find((b) => b.textContent === 'Delete')!.listeners.click!();
+  context.get('delete-all-capsules').listeners.click!();
+  expect(confirm).toHaveBeenCalledTimes(2);
+  expect(fetch).not.toHaveBeenCalled();
+  expect(context.get('delete-all-capsules').disabled).toBe(false);
+});
+
+it('asks for confirmation before deleting Prophet cards or all revealed predictions', () => {
+  const context = dom();
+  const confirm = vi.fn(() => false);
+  const fetch = vi.fn(() => new Promise(() => {}));
+  const data = {
+    total: 1,
+    warnings: [],
+    seals: [
+      {
+        id: 9,
+        number: 1,
+        displayName: 'Viewer',
+        title: 'Test',
+        text: 'A prediction',
+        cameTrue: false,
+        vipEnabled: false,
+        canDelete: true,
+      },
+    ],
+  };
+  runInNewContext(
+    readFileSync(resolve(projectRoot, 'public/dashboard/prophets.js'), 'utf8') +
+      '\nrenderProphets(' +
+      JSON.stringify(data) +
+      ');',
+    { ...context, confirm, fetch },
+  );
+  fetch.mockClear();
+  const row = context.get('prophets-list').children[0]!;
+  row.children.at(-1)!.children.find((b) => b.textContent === 'Delete')!
+    .listeners.click!();
+  context.get('delete-all-prophets').listeners.click!();
+  expect(confirm).toHaveBeenCalledTimes(2);
+  expect(fetch).not.toHaveBeenCalled();
 });

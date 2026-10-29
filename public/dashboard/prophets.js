@@ -4,6 +4,7 @@ let prophetTotal = 0;
 let prophetBusy = false;
 let prophetLoading = false;
 let prophetSignature = '';
+let prophetConnectionError = false;
 function prophetNode(tag, className, text) {
   const element = document.createElement(tag);
   element.className = className;
@@ -35,16 +36,23 @@ function prophetButton(text, action, primary = false) {
   });
   return button;
 }
-async function prophetAction(action) {
+async function prophetAction(action, method = 'POST') {
   if (prophetBusy) return;
   prophetBusy = true;
+  document.getElementById('delete-all-prophets').disabled = true;
   for (const button of document
     .getElementById('prophets-list')
     .querySelectorAll('button'))
     button.disabled = true;
   try {
-    await prophetApi(action, 'POST');
-    prophetMessage('Saved. Check the reward and chat status below.');
+    const result = await prophetApi(action, method);
+    if (method === 'DELETE') {
+      prophetMessage(
+        result.deleted +
+          ' prediction(s) deleted. Their capsules are preserved.',
+      );
+      globalThis.renderCapsules?.((await prophetApi('/api/capsules')).capsules);
+    } else prophetMessage('Saved. Check the reward and chat status below.');
   } catch (error) {
     prophetMessage(
       error instanceof Error ? error.message : 'Unable to save this reward.',
@@ -58,6 +66,8 @@ async function prophetAction(action) {
 }
 function renderProphets(data) {
   prophetTotal = data.total;
+  document.getElementById('delete-all-prophets').disabled =
+    prophetBusy || data.total === 0;
   const list = document.getElementById('prophets-list');
   list.replaceChildren();
   for (const seal of data.seals) {
@@ -147,6 +157,21 @@ function renderProphets(data) {
         );
       }
     }
+    const remove = prophetNode('button', 'delete-capsule', 'Delete');
+    remove.type = 'button';
+    remove.ariaLabel =
+      'Delete prediction #' + seal.number + ' from ' + seal.displayName;
+    remove.disabled = prophetBusy || seal.canDelete === false;
+    remove.addEventListener('click', () => {
+      if (
+        !globalThis.confirm(
+          'Permanently delete this revealed prediction and its Prophet record? Its capsule stays. This cannot be undone. Granted VIP rewards keep their scheduled expiry.',
+        )
+      )
+        return;
+      void prophetAction('/api/prophets/seals/' + seal.id, 'DELETE');
+    });
+    actions.append(remove);
     row.append(actions);
     list.append(row);
   }
@@ -178,13 +203,20 @@ async function refreshProphets() {
   if (prophetLoading || prophetBusy) return;
   prophetLoading = true;
   try {
-    const data = await prophetApi('/api/prophets?offset=' + prophetOffset);
+    let data = await prophetApi('/api/prophets?offset=' + prophetOffset);
+    if (prophetOffset > 0 && prophetOffset >= data.total) {
+      prophetOffset = Math.max(0, Math.floor((data.total - 1) / 50) * 50);
+      data = await prophetApi('/api/prophets?offset=' + prophetOffset);
+    }
+    if (prophetConnectionError) prophetMessage('');
+    prophetConnectionError = false;
     const signature = JSON.stringify(data);
     if (signature !== prophetSignature) {
       prophetSignature = signature;
       renderProphets(data);
     }
   } catch (error) {
+    prophetConnectionError = true;
     prophetMessage(
       error instanceof Error ? error.message : 'Unable to load Prophets.',
       true,
@@ -193,6 +225,16 @@ async function refreshProphets() {
     prophetLoading = false;
   }
 }
+document.getElementById('delete-all-prophets').addEventListener('click', () => {
+  if (prophetBusy || !prophetTotal) return;
+  if (
+    !globalThis.confirm(
+      'Permanently delete ALL revealed predictions and their Prophet records from every page? Capsules and unrevealed messages stay. This cannot be undone. Granted VIP rewards keep their scheduled expiry.',
+    )
+  )
+    return;
+  void prophetAction('/api/prophets', 'DELETE');
+});
 document.getElementById('prophets-refresh').addEventListener('click', () => {
   void refreshProphets();
 });

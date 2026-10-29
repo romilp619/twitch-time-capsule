@@ -245,11 +245,24 @@
                 Connect the streamer account to create a capsule.
               </p>
             </form>
-            <div
-              id="capsule-list"
-              class="capsule-list"
-              aria-label="Your capsules"
-            ></div>
+            <div class="capsule-results">
+              <div class="capsule-list-tools">
+                <span class="metadata">Your capsules</span>
+                <button
+                  id="delete-all-capsules"
+                  class="delete-capsule"
+                  type="button"
+                  disabled
+                >
+                  Delete all
+                </button>
+              </div>
+              <div
+                id="capsule-list"
+                class="capsule-list"
+                aria-label="Your capsules"
+              ></div>
+            </div>
           </div>
         </section>
         <section class="ceremony-section" aria-labelledby="ceremony-title">
@@ -310,9 +323,19 @@
         <section class="ceremony-section" aria-labelledby="prophets-title">
           <div class="section-heading">
             <h2 id="prophets-title">Prophets</h2>
-            <button type="button" id="prophets-refresh" class="secondary">
-              Refresh Prophets
-            </button>
+            <div class="section-actions">
+              <button type="button" id="prophets-refresh" class="secondary">
+                Refresh Prophets
+              </button>
+              <button
+                type="button"
+                id="delete-all-prophets"
+                class="delete-capsule"
+                disabled
+              >
+                Delete all
+              </button>
+            </div>
           </div>
           <p class="muted">
             Mark a revealed prediction as true to celebrate it on the overlay

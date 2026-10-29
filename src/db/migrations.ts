@@ -124,6 +124,18 @@ export const migrations: readonly Migration[] = [
       CREATE INDEX vip_awards_due ON vip_awards(status, expires_at);
     `,
   },
+  {
+    version: 6,
+    name: 'persistent_record_ids',
+    sql: `
+      CREATE TABLE record_ids (
+        entity TEXT PRIMARY KEY CHECK (entity IN ('capsules', 'seals')),
+        last_id INTEGER NOT NULL CHECK (last_id >= 0)
+      );
+      INSERT INTO record_ids VALUES ('capsules', (SELECT COALESCE(MAX(id), 0) FROM capsules));
+      INSERT INTO record_ids VALUES ('seals', (SELECT COALESCE(MAX(id), 0) FROM seals));
+    `,
+  },
 ];
 
 export function migrateDatabase(

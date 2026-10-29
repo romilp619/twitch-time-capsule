@@ -1,3 +1,8 @@
+import {
+  ceremonyStateSchema,
+  idleCeremony,
+  isCeremonyActive,
+} from './ceremony-state.js';
 import type Database from 'better-sqlite3';
 import type { EventLog } from '../db/events.js';
 import { TwitchError } from '../twitch/http.js';
@@ -19,6 +24,7 @@ interface RewardRow {
   text: string;
   status: string;
   broadcaster_id: string;
+  capsule_status: string;
   title: string;
   settings: string;
   came_true: number;
@@ -39,7 +45,7 @@ interface Award {
   expires_at: string;
   error: string | null;
 }
-const rowsSql = `SELECT s.*, c.broadcaster_id, c.title, c.settings,
+const rowsSql = `SELECT s.*, c.broadcaster_id, c.title, c.settings, c.status AS capsule_status,
  p.vip_status, p.vip_error, p.vip_granted_at, p.vip_expires_at, p.vip_removed_at,
  p.chat_attempted_at, p.chat_announced_at, p.chat_error
  FROM seals s JOIN capsules c ON c.id=s.capsule_id
@@ -92,6 +98,10 @@ export class Prophets {
     this.tail = operation.catch(() => {});
     return operation;
   }
+  // Deletion shares the reward queue so an in-flight grant or announcement can finish first.
+  withRewardLock<T>(work: () => T): Promise<T> {
+    return this.serial(async () => work());
+  }
   private row(id: number): RewardRow {
     const row = this.db.prepare(rowsSql + ' WHERE s.id=?').get(id) as
       RewardRow | undefined;
@@ -133,6 +143,7 @@ export class Prophets {
         displayName: row.display_name,
         text: row.text,
         cameTrue: Boolean(row.came_true),
+        canDelete: row.capsule_status !== 'opening',
         vipEnabled: settingsSchema.parse(JSON.parse(row.settings) as unknown)
           .vip_reward,
         vipStatus: row.vip_status,
@@ -145,6 +156,65 @@ export class Prophets {
         chatAnnounced: Boolean(row.chat_announced_at),
       })),
     };
+  }
+  deletePredictions(id?: number): Promise<number> {
+    return this.serial(async () => {
+      const deleted = this.db
+        .transaction(() => {
+          const where =
+            " WHERE status = 'revealed'" +
+            (id === undefined ? '' : ' AND id = ?');
+          const params = id === undefined ? [] : [id];
+          const targets = this.db
+            .prepare('SELECT id, capsule_id FROM seals' + where)
+            .all(...params) as Array<{ id: number; capsule_id: number }>;
+          if (id !== undefined && !targets.length)
+            throw new CapsuleError(404, 'Revealed prediction not found.');
+          const capsuleIds = new Set(targets.map((row) => row.capsule_id));
+          const runtime = this.db
+            .prepare('SELECT state FROM ceremony_runtime WHERE id = 1')
+            .get() as { state: string } | undefined;
+          const state = runtime
+            ? ceremonyStateSchema.parse(JSON.parse(runtime.state) as unknown)
+            : null;
+          const touchesCeremony =
+            state?.capsuleId != null && capsuleIds.has(state.capsuleId);
+          const opening = this.db
+            .prepare(
+              "SELECT id FROM capsules WHERE status = 'opening' AND id IN (SELECT capsule_id FROM seals" +
+                where +
+                ')',
+            )
+            .get(...params);
+          if (opening || (touchesCeremony && state && isCeremonyActive(state)))
+            throw new CapsuleError(
+              409,
+              'End the opening ceremony before deleting its predictions.',
+            );
+          this.db
+            .prepare(
+              'DELETE FROM prophets WHERE seal_id IN (SELECT id FROM seals' +
+                where +
+                ')',
+            )
+            .run(...params);
+          const result = this.db
+            .prepare('DELETE FROM seals' + where)
+            .run(...params);
+          if (touchesCeremony)
+            this.db
+              .prepare('UPDATE ceremony_runtime SET state = ? WHERE id = 1')
+              .run(JSON.stringify(idleCeremony()));
+          return result.changes;
+        })
+        .immediate();
+      this.log.write(
+        id === undefined ? 'prophet.deleted_all' : 'prophet.deleted',
+        { count: deleted, ...(id === undefined ? {} : { sealId: id }) },
+      );
+      this.changed();
+      return deleted;
+    });
   }
   mark(id: number): Promise<void> {
     return this.serial(async () => {

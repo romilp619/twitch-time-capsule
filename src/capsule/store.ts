@@ -1,4 +1,9 @@
 import {
+  ceremonyStateSchema,
+  idleCeremony,
+  isCeremonyActive,
+} from './ceremony-state.js';
+import {
   nextTriggerState,
   type TriggerFacts,
   type TriggerAction,
@@ -58,6 +63,20 @@ export class CapsuleStore {
     private readonly changed: () => void = () => {},
     private readonly now: () => number = Date.now,
   ) {}
+  private nextId(entity: 'capsules' | 'seals'): number {
+    // Allocated inside the caller's transaction. Deleted IDs must never target new records.
+    const row = this.db
+      .prepare('SELECT last_id FROM record_ids WHERE entity = ?')
+      .get(entity) as { last_id: number };
+    const current = this.db
+      .prepare('SELECT COALESCE(MAX(id), 0) AS id FROM ' + entity)
+      .get() as { id: number };
+    const next = Math.max(row.last_id, current.id) + 1;
+    this.db
+      .prepare('UPDATE record_ids SET last_id = ? WHERE entity = ?')
+      .run(next, entity);
+    return next;
+  }
   private capsule(row: CapsuleRow): Capsule {
     const input = createCapsuleSchema.parse({
       title: row.title,
@@ -215,9 +234,10 @@ export class CapsuleStore {
         );
       return this.db
         .prepare(
-          'INSERT INTO capsules (slug, title, trigger_type, trigger_value, settings, broadcaster_id, channel_login, channel_name, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+          'INSERT INTO capsules (id, slug, title, trigger_type, trigger_value, settings, broadcaster_id, channel_login, channel_name, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
         )
         .run(
+          this.nextId('capsules'),
           slug,
           input.title,
           input.triggerType,
@@ -263,6 +283,54 @@ export class CapsuleStore {
     if (!capsule) throw new Error('Capsule status update failed.');
     return capsule;
   }
+  deleteCapsules(id?: number): number {
+    const deleted = this.db
+      .transaction(() => {
+        if (id !== undefined && !this.get(id))
+          throw new CapsuleError(404, 'Capsule not found.');
+        const params = id === undefined ? [] : [id];
+        const where = id === undefined ? '' : ' WHERE id = ?';
+        const opening = this.db
+          .prepare(
+            "SELECT id FROM capsules WHERE status = 'opening'" +
+              (id === undefined ? '' : ' AND id = ?'),
+          )
+          .get(...params);
+        const runtime = this.db
+          .prepare('SELECT state FROM ceremony_runtime WHERE id = 1')
+          .get() as { state: string } | undefined;
+        const state = runtime
+          ? ceremonyStateSchema.parse(JSON.parse(runtime.state) as unknown)
+          : null;
+        const touchesCeremony =
+          state?.capsuleId != null &&
+          (id === undefined || state.capsuleId === id);
+        if (opening || (touchesCeremony && state && isCeremonyActive(state)))
+          throw new CapsuleError(
+            409,
+            'End the opening ceremony before deleting its capsule.',
+          );
+        const targets = 'SELECT id FROM capsules' + where;
+        // Keep independent VIP award ownership/expiry records, even after messages are deleted.
+        this.db
+          .prepare('DELETE FROM prophets WHERE capsule_id IN (' + targets + ')')
+          .run(...params);
+        this.db
+          .prepare('DELETE FROM seals WHERE capsule_id IN (' + targets + ')')
+          .run(...params);
+        const result = this.db
+          .prepare('DELETE FROM capsules' + where)
+          .run(...params);
+        if (touchesCeremony)
+          this.db
+            .prepare('UPDATE ceremony_runtime SET state = ? WHERE id = 1')
+            .run(JSON.stringify(idleCeremony()));
+        return result.changes;
+      })
+      .immediate();
+    if (deleted) this.changed();
+    return deleted;
+  }
   acceptSeal(
     input: SealInput,
     blocked: (text: string) => boolean = () => false,
@@ -306,9 +374,10 @@ export class CapsuleStore {
         .get(capsule.id) as { next: number };
       const result = this.db
         .prepare(
-          'INSERT INTO seals (capsule_id, number, user_id, user_login, display_name, text, created_at, chat_message_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+          'INSERT INTO seals (id, capsule_id, number, user_id, user_login, display_name, text, created_at, chat_message_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
         )
         .run(
+          this.nextId('seals'),
           capsule.id,
           row.next,
           input.userId,

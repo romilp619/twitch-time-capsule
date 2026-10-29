@@ -245,6 +245,8 @@ export function buildServer(
   };
   registerCapsuleRoutes(app, {
     store: capsules,
+    deleteCapsules: (id) =>
+      prophets.withRewardLock(() => capsules.deleteCapsules(id)),
     triggers,
     auth,
     helix,
