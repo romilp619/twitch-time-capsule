@@ -279,6 +279,25 @@ describe('Persistent ceremony, approval, and preview', () => {
     expect(() => ceremony.moderate(3, 'approved')).toThrow('No ceremony');
     expect(() => ceremony.end()).toThrow('No ceremony');
   });
+  it('broadcasts the Prophet stamp at eight seconds in the isolated preview', () => {
+    const { ceremony, advance } = fixture();
+    ceremony.preview();
+    advance(7000);
+    ceremony.tick();
+    const revision = ceremony.dashboard().revision;
+    expect(ceremony.overlay().stage).toBe('reveal');
+    advance(1000);
+    ceremony.tick();
+    expect(ceremony.dashboard().revision).toBe(revision + 1);
+    expect(ceremony.overlay()).toMatchObject({
+      stage: 'prophet',
+      prophet: '@FutureViewer is a Prophet!',
+    });
+    expect(ceremony.overlay().cards[0]).toMatchObject({ cameTrue: true });
+    advance(2000);
+    ceremony.tick();
+    expect(ceremony.overlay()).toMatchObject({ stage: 'idle', cards: [] });
+  });
   it('plays an isolated ten-second preview without changing approvals or capsule state', () => {
     const { ceremony, advance, store, capsule, db } = fixture();
     const before = db

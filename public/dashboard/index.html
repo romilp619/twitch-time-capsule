@@ -9,6 +9,7 @@
     <script src="/dashboard/app.js" defer></script>
     <script src="/dashboard/capsules.js" defer></script>
     <script src="/dashboard/ceremony.js" defer></script>
+    <script src="/dashboard/prophets.js" defer></script>
   </head>
   <body>
     <div class="shell">
@@ -228,8 +229,8 @@
                   required
                 />
                 <p class="metadata">
-                  Reward preferences are saved here. VIP grants arrive in Phase
-                  7.
+                  Mark revealed predictions as true to honor Prophets. VIP
+                  rewards expire after the days you choose.
                 </p>
               </details>
               <button
@@ -305,6 +306,42 @@
               </button>
             </div>
           </div>
+        </section>
+        <section class="ceremony-section" aria-labelledby="prophets-title">
+          <div class="section-heading">
+            <h2 id="prophets-title">Prophets</h2>
+            <button type="button" id="prophets-refresh" class="secondary">
+              Refresh Prophets
+            </button>
+          </div>
+          <p class="muted">
+            Mark a revealed prediction as true to celebrate it on the overlay
+            and announce it in chat. After the ceremony, Prophet display names
+            appear on the public Wall of Prophets.
+          </p>
+          <div id="prophets-feedback" role="status" aria-live="polite"></div>
+          <div id="prophets-warnings" aria-live="polite"></div>
+          <div
+            id="prophets-list"
+            class="mod-queue"
+            aria-label="Revealed predictions and Prophet rewards"
+          ></div>
+          <div class="queue-pagination">
+            <button type="button" id="prophets-prev" class="secondary">
+              Previous Prophets</button
+            ><span id="prophets-page" class="metadata"></span
+            ><button type="button" id="prophets-next" class="secondary">
+              Next Prophets
+            </button>
+          </div>
+          <p class="metadata">
+            VIP expiry runs at startup and every hour while this app is running.
+            Existing VIPs are preserved. Failed or interrupted rewards are shown
+            here for review.
+          </p>
+          <button type="button" id="prophets-expiry" class="secondary">
+            Check expired VIP rewards
+          </button>
         </section>
         <section class="ceremony-section" aria-labelledby="overlay-title">
           <div class="section-heading">

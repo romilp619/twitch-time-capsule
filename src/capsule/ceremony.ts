@@ -20,6 +20,7 @@ interface SealRow {
   created_at: string;
   revealed_at: string | null;
   status: string;
+  came_true: number;
 }
 export type QueueFilter =
   'pending' | 'approved' | 'rejected' | 'revealed' | 'all';
@@ -156,7 +157,9 @@ export class Ceremony {
         const signature =
           elapsed < 3000
             ? 'opening'
-            : String(Math.min(3, 1 + Math.floor((elapsed - 3000) / 2000)));
+            : elapsed >= 8000
+              ? 'prophet'
+              : String(Math.min(3, 1 + Math.floor((elapsed - 3000) / 2000)));
         if (signature !== this.previewSignature) {
           this.previewSignature = signature;
           this.notify();
@@ -203,7 +206,7 @@ export class Ceremony {
       filter === 'all' ? [state.capsuleId] : [state.capsuleId, filter];
     const rows = this.db
       .prepare(
-        'SELECT id, number, display_name, text, created_at, revealed_at, status FROM seals WHERE capsule_id = ?' +
+        'SELECT id, number, display_name, text, created_at, revealed_at, status, came_true FROM seals WHERE capsule_id = ?' +
           where +
           ' ORDER BY number LIMIT ? OFFSET ?',
       )
@@ -254,7 +257,7 @@ export class Ceremony {
     this.db
       .transaction(() => {
         const state = this.requireActive();
-        if (!['queue', 'reveal'].includes(state.stage))
+        if (!['queue', 'reveal', 'prophet'].includes(state.stage))
           throw new CapsuleError(
             409,
             'Wait for the opening animation before revealing messages.',
@@ -285,6 +288,44 @@ export class Ceremony {
       sealId: selected,
     });
     this.notify();
+  }
+  prophet(sealId: number, capsuleId: number): void {
+    const state = this.state();
+    if (
+      state.capsuleId !== capsuleId ||
+      !['reveal', 'prophet'].includes(state.stage)
+    )
+      return;
+    this.save(
+      transitionCeremony(state, { type: 'prophet', sealId }, this.now()),
+    );
+    this.notify();
+  }
+  private prophetBanner(sealId: number | null) {
+    if (!sealId) return null;
+    const row = this.db
+      .prepare(
+        `SELECT s.display_name, p.vip_status, c.settings FROM prophets p
+      JOIN seals s ON s.id=p.seal_id JOIN capsules c ON c.id=p.capsule_id WHERE p.seal_id=?`,
+      )
+      .get(sealId) as
+      | { display_name: string; vip_status: string; settings: string }
+      | undefined;
+    if (!row) return null;
+    const days = (JSON.parse(row.settings) as { vip_days: number }).vip_days;
+    return (
+      '@' +
+      row.display_name +
+      (row.vip_status === 'granted'
+        ? ' gets VIP for ' + days + ' days!'
+        : row.vip_status === 'pending'
+          ? ' is a Prophet! Checking VIP reward…'
+          : row.vip_status === 'existing'
+            ? ' is a Prophet! Existing VIP preserved.'
+            : ['error', 'uncertain'].includes(row.vip_status)
+              ? ' is a Prophet! Check the dashboard for the VIP reward.'
+              : ' is a Prophet!')
+    );
   }
   setAuto(enabled: boolean): void {
     const state = this.requireActive();
@@ -344,6 +385,7 @@ export class Ceremony {
       text: row.text,
       createdAt: row.created_at,
       revealedAt: row.revealed_at,
+      cameTrue: Boolean(row.came_true),
     };
   }
   overlay() {
@@ -361,7 +403,9 @@ export class Ceremony {
           : Math.min(3, 1 + Math.floor((elapsed - 3000) / 2000));
       return {
         type: 'ceremony',
-        stage: elapsed < 3000 ? 'opening' : 'reveal',
+        stage:
+          elapsed < 3000 ? 'opening' : elapsed >= 8000 ? 'prophet' : 'reveal',
+        prophet: elapsed >= 8000 ? '@FutureViewer is a Prophet!' : null,
         preview: true,
         capsuleId: -1,
         startedAt: this.previewAt,
@@ -371,6 +415,7 @@ export class Ceremony {
         settings,
         cards: messages.slice(0, count).map((text, i) => ({
           id: -i - 1,
+          cameTrue: i === 0 && elapsed >= 8000,
           number: i + 1,
           displayName: ['FutureViewer', 'CapsuleKeeper', 'OneMoreTry'][i],
           text,
@@ -392,7 +437,7 @@ export class Ceremony {
     const cards = state.recentSealIds.flatMap((id) => {
       const row = this.db
         .prepare(
-          "SELECT id, number, display_name, text, created_at, revealed_at, status FROM seals WHERE id = ? AND capsule_id = ? AND status = 'revealed'",
+          "SELECT id, number, display_name, text, created_at, revealed_at, status, came_true FROM seals WHERE id = ? AND capsule_id = ? AND status = 'revealed'",
         )
         .get(id, state.capsuleId) as SealRow | undefined;
       return row ? [this.card(row)] : [];
@@ -400,6 +445,7 @@ export class Ceremony {
     return {
       type: 'ceremony',
       stage: state.stage,
+      prophet: this.prophetBanner(state.prophetSealId),
       preview: false,
       capsuleId: capsule.id,
       startedAt: state.startedAt,

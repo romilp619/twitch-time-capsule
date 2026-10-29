@@ -63,9 +63,11 @@ function renderPublicCapsule(capsule) {
         ? 'Ready and waiting to open live.'
         : capsule.status === 'opening'
           ? 'The opening has started. Messages remain sealed until revealed.'
-          : capsule.status === 'archived'
-            ? 'Archived.'
-            : 'Sealed and waiting.';
+          : capsule.status === 'opened'
+            ? 'Opened. These memories are preserved.'
+            : capsule.status === 'archived'
+              ? 'Archived.'
+              : 'Sealed and waiting.';
   document.getElementById('how-to-seal').hidden = capsule.status !== 'sealing';
   document.getElementById('closed-note').hidden = capsule.status === 'sealing';
   document.getElementById('closed-note').textContent =
@@ -78,6 +80,23 @@ function renderPublicCapsule(capsule) {
     ' messages per viewer, 10 seconds apart.';
   document.getElementById('chat-link').href =
     'https://www.twitch.tv/' + encodeURIComponent(capsule.channel.login);
+  const wall = document.getElementById('prophet-wall');
+  const names = document.getElementById('prophet-wall-list');
+  names.replaceChildren();
+  wall.hidden = !capsule.prophets?.length;
+  for (const prophet of capsule.prophets || []) {
+    const entry = document.createElement('p');
+    entry.className = 'wall-prophet';
+    entry.textContent =
+      '@' +
+      prophet.displayName +
+      ' · PROPHET · ' +
+      prophet.predictions +
+      (prophet.predictions === 1
+        ? ' prediction came true'
+        : ' predictions came true');
+    names.append(entry);
+  }
   updateCountdown();
 }
 async function refreshPublicCapsule() {

@@ -356,6 +356,23 @@ export class CapsuleStore {
       condition: conditionText(capsule, this.now()),
       createdAt: capsule.createdAt,
       sealedCount: capsule.sealedCount,
+      prophets: capsule.openedAt
+        ? (
+            this.db
+              .prepare(
+                `SELECT s.display_name, COUNT(*) AS predictions
+        FROM prophets p JOIN seals s ON s.id=p.seal_id WHERE p.capsule_id=?
+        AND s.status='revealed' AND s.came_true=1 GROUP BY s.user_id ORDER BY MIN(p.id) LIMIT 100`,
+              )
+              .all(capsule.id) as Array<{
+              display_name: string;
+              predictions: number;
+            }>
+          ).map((row) => ({
+            displayName: row.display_name,
+            predictions: row.predictions,
+          }))
+        : [],
       maxLength: capsule.settings.max_length,
       maxSealsPerUser: capsule.settings.max_seals_per_user,
     };

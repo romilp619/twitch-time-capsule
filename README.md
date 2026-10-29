@@ -1,10 +1,10 @@
 # Time Capsule
 
-Time Capsule lets Twitch viewers seal free-text predictions and messages, then reveal them together during a future stream. A streamer can choose a date, a follower goal, a first stream in a category, or a manual opening. Moderators approve reveals; predictions that come true earn a place on the Wall of Prophets, with optional temporary VIP. The planned OBS overlay stays empty and transparent outside a ceremony. No paid AI or external AI service is used at runtime.
+Time Capsule lets Twitch viewers seal free-text predictions and messages, then reveal them together during a future stream. A streamer can choose a date, a follower goal, a first stream in a category, or a manual opening. Moderators approve reveals; predictions that come true earn a place on the Wall of Prophets, with optional temporary VIP. The OBS overlay stays empty and transparent outside a ceremony. No paid AI or external AI service is used at runtime.
 
 ## Build status
 
-**Phase 6: ceremony and overlay.** The app now includes the transparent keyed OBS page, opening animation, private approval queue, manual/hotkey/auto reveals, saved card settings, reconnect restoration, and an isolated ten-second preview. Triggers and sealed-message storage remain available. Prophets and VIP actions arrive in Phase 7. The original specification is in [CODEX_PROMPT.md](./CODEX_PROMPT.md).
+**Phase 7: Prophets and VIP rewards.** Revealed predictions can be marked true in the private dashboard. The overlay stamps them, chat announces recognition, and optional VIP rewards include visible errors, retries, and an expiry job. Opened public capsules show a Wall of Prophets using display names only. No sealed or revealed message text is published by the public page. The original specification is in [CODEX_PROMPT.md](./CODEX_PROMPT.md).
 
 ## Quick start
 
@@ -19,7 +19,7 @@ npm run dev
 Open [http://localhost:3000/health](http://localhost:3000/health). Expected JSON:
 
 ```json
-{ "status": "ok", "app": "time-capsule", "phase": 6, "database": "ok" }
+{ "status": "ok", "app": "time-capsule", "phase": 7, "database": "ok" }
 ```
 
 The health server and dashboard start without Twitch credentials and show a setup warning. A fresh start creates data/time-capsule.db and two different random keys in data/keys.json. Open the private dashboard URL printed at startup. The overlay URL is also printed at startup.
@@ -266,7 +266,7 @@ The private queue is available while a ceremony is active. Filter by pending, ap
 - **End ceremony** stops auto-reveal, clears the overlay, and preserves all messages and decisions.
 - **Play 10-second preview** uses sample messages in memory only. It does not touch real seals, approvals, Twitch chat, or capsule status. End an active real ceremony before previewing.
 
-Public capsule pages remain metadata and counts only, including after a ceremony ends. Revealed text is available through the private dashboard and keyed OBS view. Public publication is not enabled in this phase. Prophet stamps and VIP actions arrive in Phase 7.
+Public capsule pages remain metadata and counts only, including after a ceremony ends. Revealed text is available through the private dashboard and keyed OBS view. Public message publication remains disabled. Phase 7 adds Prophet stamps, VIP actions, and a name-only public wall.
 
 ### Phase 6 acceptance check
 
@@ -281,9 +281,35 @@ Public capsule pages remain metadata and counts only, including after a ceremony
 
 Private HTTP routes: GET /api/ceremony, GET /api/ceremony/queue, POST /api/ceremony/seals/:id, POST /api/ceremony/reveal, POST /api/ceremony/auto, POST /api/ceremony/settings, POST /api/ceremony/end, and POST /api/ceremony/preview. They use existing dashboard authentication and mutation origin checks. The read-only overlay uses /overlay, /api/overlay/state, and /ws/overlay with its separate overlay key. No new dependencies, Twitch scopes, or Twitch API endpoints are added in Phase 6.
 
+## Prophets and VIP rewards (Phase 7)
+
+The private **Prophets** section lists revealed predictions, including after the ceremony ends. **Came true** permanently marks a prediction, updates its visible overlay card during the active ceremony, and sends `@user's prediction came true. Prophet!` through the existing chat sender. A granted reward adds the VIP duration to that announcement. Duplicate clicks create one Prophet record and one confirmed announcement. If chat fails, the dashboard explains the failure and offers **Retry announcement**. Check chat before retrying an unconfirmed send: an interrupted response may have delivered the message.
+
+When creating a capsule, enable **Reward Prophets with VIP** and choose 1–365 days (default 30). Rewards are off by default. A revealed prediction from a VIP-enabled capsule attempts the grant when marked true. The green CAME TRUE stamp and gold PROPHET badge appear even when Twitch refuses VIP. The overlay banner says a VIP was granted only after confirmation; otherwise it shows recognition and directs you to the dashboard. Recognition remains after VIP expires. The sample ten-second preview now includes a Prophet stamp at the end; it never calls Twitch.
+
+VIP reads and changes use the broadcaster's user token and the existing `channel:manage:vips` scope. The implementation adds [Get VIPs](https://dev.twitch.tv/docs/api/reference/#get-vips), [Add Channel VIP](https://dev.twitch.tv/docs/api/reference/#add-channel-vip), and [Remove Channel VIP](https://dev.twitch.tv/docs/api/reference/#remove-channel-vip). It first checks the specific viewer's current role. Existing VIPs are preserved and get no app-owned expiry. Grant errors explain invalid IDs, authorization, unavailable users, no free slots, moderator/already-VIP conflicts, channel eligibility, and rate limits. Removal also handles permission errors and an already-removed VIP. No new scopes or dependencies are required.
+
+Migration 5 adds reward/announcement status and a separate ownership ledger. Only a confirmed successful app grant creates an owned VIP award. Multiple rewards for the same viewer/channel share ownership and extend expiry to the latest reward; the role is removed once. At startup and every hour, the job removes expired owned awards using their original channel identity. Failed removals appear on the reward; use **Check expired VIP rewards** to retry. If the original channel is disconnected, reconnect it first. The app must be running to process expiry; overdue confirmed awards are checked on the next startup.
+
+An interrupted grant/removal is recorded as uncertain rather than guessed successful. A grant retry checks Twitch first and preserves any existing role. An uncertain removal pauses automatic removal and needs review in Twitch. The ledger cannot distinguish a manually removed-and-regranted role from the original app grant between checks; manage such changes in Twitch with the recorded expiry in mind. Local database and token backups must remain private.
+
+After **End ceremony**, the public page shows up to 100 Prophet display names, with each viewer's count of correct predictions. Pending/rejected messages, seal texts, user IDs, role errors, and VIP expiry details remain private. This implements the public Wall of Prophets without enabling public message publication.
+
+### Phase 7 acceptance check
+
+1. Refresh your existing private dashboard at localhost:3000. The **Prophets** section appears between the ceremony and overlay sections. Existing capsules, keys, accounts, and sealed messages are preserved.
+2. Click **Play 10-second preview**. At the end of the sample cards, expect a CAME TRUE stamp and PROPHET badge. The preview returns to an empty overlay and needs no live stream.
+3. For the real flow, create a manual capsule with VIP **off** first. Have a separate viewer send `!seal I predict we win the next round` in Twitch chat. Go live, choose **Open now**, approve the message, then **Reveal next**.
+4. In **Prophets**, click **Came true** for that revealed message. Expect the overlay stamp/banner and the Prophet chat announcement. Reload the dashboard: the recognition remains. A pending or rejected seal cannot be marked true.
+5. For VIP, create a new capsule with **Reward Prophets with VIP** enabled before collecting its seals. Repeat the approved reveal and Came true flow. Expect either **VIP granted by this app** with an expiry, or a clear Twitch error. Your channel may require Build a Community and a free VIP slot. Existing VIPs are preserved. Use **Retry VIP** after resolving a grant error.
+6. End the ceremony. The overlay fades to empty. Open **View public page**: the Wall of Prophets shows display names without message contents or private role details.
+7. Run `npm test`, `npm run typecheck`, `npm run lint`, and `npm run build`. Fake Twitch tests cover grant/removal errors, permission isolation, concurrent clicks, existing roles, overlapping awards, restarts, startup/hourly expiry, retry behavior, public privacy, and literal-text rendering. Live Twitch grants are left for your acceptance test.
+
+Private routes: GET /api/prophets (50-row pages, limit capped at 100), POST /api/prophets/seals/:id/came-true, POST /api/prophets/seals/:id/retry-vip, POST /api/prophets/seals/:id/retry-chat, and POST /api/prophets/expiry. All require the admin key; browser mutations also check Origin. The overlay key cannot use these routes. `src/capsule/prophets.ts` owns persistence and expiry; ceremony state and rendering remain separate.
+
 ## Next phase
 
-Phase 7 adds Prophet recognition, came-true stamps, Twitch VIP grant/error handling, the expiry job, and the Wall of Prophets.
+Phase 8 adds an account-free demo mode and Play full story. It has not been started.
 
 ## How I used Codex
 

@@ -186,3 +186,12 @@ footer {
     padding: 18px;
   }
 }
+
+.wall-prophet {
+  border: 1px solid #d9b76a66;
+  border-radius: 0.6rem;
+  padding: 1rem;
+  color: #e5c27c;
+  background: #18221b;
+  overflow-wrap: anywhere;
+}

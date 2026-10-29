@@ -13,12 +13,13 @@ export type OverlaySettings = z.infer<typeof overlaySettingsSchema>;
 export const ceremonyStateSchema = z
   .object({
     capsuleId: z.number().int().positive().nullable(),
-    stage: z.enum(['idle', 'opening', 'queue', 'reveal', 'ended']),
+    stage: z.enum(['idle', 'opening', 'queue', 'reveal', 'prophet', 'ended']),
     startedAt: z.number(),
     updatedAt: z.number(),
     recentSealIds: z.array(z.number().int().positive()).max(3),
     lastRevealAt: z.number().nullable(),
     autoReveal: z.boolean(),
+    prophetSealId: z.number().int().positive().nullable().default(null),
   })
   .strict();
 export type CeremonyState = z.infer<typeof ceremonyStateSchema>;
@@ -30,15 +31,17 @@ export const idleCeremony = (): CeremonyState => ({
   recentSealIds: [],
   lastRevealAt: null,
   autoReveal: false,
+  prophetSealId: null,
 });
 export type CeremonyEvent =
   | { type: 'begin'; capsuleId: number }
   | { type: 'tick' }
   | { type: 'reveal'; sealId: number }
+  | { type: 'prophet'; sealId: number }
   | { type: 'auto'; enabled: boolean }
   | { type: 'end' };
 export function isCeremonyActive(state: CeremonyState): boolean {
-  return ['opening', 'queue', 'reveal'].includes(state.stage);
+  return ['opening', 'queue', 'reveal', 'prophet'].includes(state.stage);
 }
 // The reducer only decides transitions; SQL, approval, and clocks live outside it.
 export function transitionCeremony(
@@ -62,7 +65,7 @@ export function transitionCeremony(
         ? { ...state, stage: 'queue', updatedAt: now }
         : state;
     case 'reveal':
-      if (!['queue', 'reveal'].includes(state.stage))
+      if (!['queue', 'reveal', 'prophet'].includes(state.stage))
         throw new CapsuleError(
           409,
           'Wait for the opening animation before revealing messages.',
@@ -72,12 +75,25 @@ export function transitionCeremony(
       return {
         ...state,
         stage: 'reveal',
+        prophetSealId: null,
         recentSealIds: [...state.recentSealIds, event.sealId].slice(-3),
         lastRevealAt: now,
         updatedAt: now,
       };
+    case 'prophet':
+      if (!['reveal', 'prophet'].includes(state.stage))
+        throw new CapsuleError(409, 'Reveal a message before marking it true.');
+      return {
+        ...state,
+        stage: 'prophet',
+        prophetSealId: event.sealId,
+        recentSealIds: state.recentSealIds.includes(event.sealId)
+          ? state.recentSealIds
+          : [...state.recentSealIds, event.sealId].slice(-3),
+        updatedAt: now,
+      };
     case 'auto':
-      if (!['queue', 'reveal'].includes(state.stage))
+      if (!['queue', 'reveal', 'prophet'].includes(state.stage))
         throw new CapsuleError(
           409,
           'Auto-reveal is available after the opening animation.',

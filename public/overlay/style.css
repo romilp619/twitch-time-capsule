@@ -245,3 +245,36 @@ body {
     opacity: 1;
   }
 }
+
+.prophet-banner {
+  color: #f4dda4;
+  background: #1b3029f5;
+  border: 1px solid #86cba0;
+  border-radius: 0.6em;
+  padding: 0.9em 1.1em;
+  font-size: 0.85em;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+.reveal-card.came-true {
+  border-color: #87cba4;
+}
+.prophet-stamp {
+  display: inline-block;
+  margin-top: 0.9em;
+  color: #acf0c3;
+  border: 0.12em solid #86cba0;
+  padding: 0.25em 0.5em;
+  border-radius: 0.2em;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  font-size: 0.75em;
+}
+.prophet-badge {
+  display: inline-block;
+  margin-left: 0.8em;
+  color: #ebcb82;
+  font-weight: 800;
+  font-size: 0.65em;
+  letter-spacing: 0.1em;
+}

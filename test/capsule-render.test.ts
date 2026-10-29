@@ -59,6 +59,70 @@ function dom() {
 }
 const attack = '<img src=x onerror=alert(1)>';
 describe('Capsule page escaping', () => {
+  it('renders private Prophet messages and error banners as literal text', () => {
+    const context = dom();
+    const data = {
+      total: 1,
+      warnings: [attack],
+      seals: [
+        {
+          id: 1,
+          title: attack,
+          number: 1,
+          displayName: attack,
+          text: attack,
+          cameTrue: true,
+          vipStatus: 'error',
+          vipRetryable: true,
+          vipError: attack,
+          chatError: attack,
+          chatAnnounced: false,
+        },
+      ],
+    };
+    runInNewContext(
+      readFileSync(
+        resolve(projectRoot, 'public/dashboard/prophets.js'),
+        'utf8',
+      ) +
+        '\nrenderProphets(' +
+        JSON.stringify(data) +
+        ');',
+      context,
+    );
+    const row = context.get('prophets-list').children[0]!;
+    expect(row.children[0]?.children[0]?.textContent).toBe('@' + attack);
+    expect(row.children[2]?.textContent).toBe(attack);
+    expect(context.get('prophets-warnings').children[0]?.textContent).toBe(
+      attack,
+    );
+  });
+
+  it('renders Wall of Prophets names as literal text without messages or private role details', () => {
+    const context = dom();
+    const capsule = {
+      title: 'Opened capsule',
+      status: 'opened',
+      triggerType: 'manual',
+      channel: { login: 'streamer' },
+      sealedCount: 1,
+      maxLength: 280,
+      maxSealsPerUser: 3,
+      prophets: [{ displayName: attack, predictions: 2 }],
+    };
+    runInNewContext(
+      readFileSync(resolve(projectRoot, 'public/capsule/app.js'), 'utf8') +
+        '\nrenderPublicCapsule(' +
+        JSON.stringify(capsule) +
+        ');',
+      context,
+    );
+    expect(context.get('prophet-wall').hidden).toBe(false);
+    expect(context.get('prophet-wall-list').children[0]?.textContent).toBe(
+      '@' + attack + ' · PROPHET · 2 predictions came true',
+    );
+  });
+
   it('renders untrusted public titles and channel/category names as plain text', () => {
     const context = dom();
     const capsule = {

@@ -1,3 +1,6 @@
+import { Prophets } from './capsule/prophets.js';
+import { registerProphetRoutes } from './capsule/prophet-routes.js';
+import { ChatSender } from './twitch/chat.js';
 import { Ceremony } from './capsule/ceremony.js';
 import { registerCeremonyRoutes } from './capsule/ceremony-routes.js';
 import { TriggerScheduler } from './capsule/scheduler.js';
@@ -54,6 +57,7 @@ export function buildServer(
     }),
   ]);
   const helix = new HelixClient(auth, dependencies.fetcher);
+  const sender = new ChatSender(auth, helix, dependencies.now);
   const capsules = new CapsuleStore(db, broadcast, dependencies.now);
   const blockedWords = new BlockedWords(config.dataDir);
   const ceremony = new Ceremony(
@@ -62,6 +66,24 @@ export function buildServer(
     blockedWords,
     log,
     broadcast,
+    dependencies.now,
+  );
+  const prophets = new Prophets(
+    db,
+    {
+      isVip: (channel, user) => helix.isVip(channel, user),
+      changeVip: (channel, user, remove) =>
+        helix.changeVip(channel, user, remove),
+      currentChannel: () => auth.publicAccount('streamer').userId ?? undefined,
+      announce: (channel, text) =>
+        sender.send(text, {
+          broadcasterId: channel,
+          senderId: auth.publicAccount(auth.effectiveRole('bot')).userId ?? '',
+        }),
+    },
+    log,
+    broadcast,
+    (sealId, capsuleId) => ceremony.prophet(sealId, capsuleId),
     dependencies.now,
   );
   const triggers = new TriggerScheduler(
@@ -83,7 +105,13 @@ export function buildServer(
           log,
           broadcast,
           (live) => connection.setLive(live),
-          { ...dependencies.eventsubOptions, capsules, blockedWords, triggers },
+          {
+            ...dependencies.eventsubOptions,
+            capsules,
+            blockedWords,
+            triggers,
+            sender,
+          },
         );
   const connection = new TwitchConnection(auth, helix, runtime, (live) =>
     triggers.sync(live),
@@ -137,6 +165,7 @@ export function buildServer(
   });
   app.addHook('onReady', async () => {
     await connection.start();
+    await prophets.start();
     ceremony.start();
     triggers.start();
   });
@@ -145,6 +174,8 @@ export function buildServer(
     for (const socket of peers) socket.terminate();
     for (const socket of overlayPeers) socket.terminate();
     ceremony.close();
+    await prophets.close();
+    await sender.close();
     await triggers.close();
     await connection.close();
     db.close();
@@ -209,6 +240,7 @@ export function buildServer(
   const overlayUrl =
     config.baseUrl + '/overlay?key=' + encodeURIComponent(config.overlayKey);
   registerCeremonyRoutes(app, ceremony, requireAdmin, overlayUrl);
+  registerProphetRoutes(app, prophets, requireAdmin);
   const requireOverlay = async (
     request: FastifyRequest,
     reply: FastifyReply,
@@ -279,7 +311,7 @@ export function buildServer(
 
   app.get('/health', () => {
     db.prepare('SELECT 1').get();
-    return { status: 'ok', app: 'time-capsule', phase: 6, database: 'ok' };
+    return { status: 'ok', app: 'time-capsule', phase: 7, database: 'ok' };
   });
   app.get('/overlay', { preHandler: requireOverlay }, (_request, reply) => {
     // OBS injects its default transparent-body stylesheet; allow only its exact hash.
@@ -298,6 +330,11 @@ export function buildServer(
     ceremony.overlay(),
   );
   for (const [url, file, type] of [
+    [
+      '/dashboard/prophets.js',
+      'public/dashboard/prophets.js',
+      'text/javascript',
+    ],
     ['/overlay/app.js', 'public/overlay/app.js', 'text/javascript'],
     ['/overlay/style.css', 'public/overlay/style.css', 'text/css'],
     [

@@ -102,6 +102,28 @@ export const migrations: readonly Migration[] = [
       );
     `,
   },
+  {
+    version: 5,
+    name: 'prophet_rewards',
+    sql: `
+      ALTER TABLE prophets ADD COLUMN created_at TEXT;
+      ALTER TABLE prophets ADD COLUMN vip_status TEXT NOT NULL DEFAULT 'off';
+      ALTER TABLE prophets ADD COLUMN chat_attempted_at TEXT;
+      ALTER TABLE prophets ADD COLUMN chat_announced_at TEXT;
+      ALTER TABLE prophets ADD COLUMN chat_error TEXT;
+      CREATE TABLE vip_awards (
+        broadcaster_id TEXT NOT NULL,
+        user_id TEXT NOT NULL,
+        status TEXT NOT NULL CHECK (status IN ('granting', 'owned', 'uncertain', 'removing', 'released')),
+        granted_at TEXT,
+        expires_at TEXT NOT NULL,
+        removed_at TEXT,
+        error TEXT,
+        PRIMARY KEY (broadcaster_id, user_id)
+      );
+      CREATE INDEX vip_awards_due ON vip_awards(status, expires_at);
+    `,
+  },
 ];
 
 export function migrateDatabase(

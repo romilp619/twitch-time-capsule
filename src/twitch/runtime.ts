@@ -35,6 +35,7 @@ const followSchema = broadcasterSchema.extend({
   user_login: z.string().max(100),
 });
 export interface RuntimeOptions {
+  sender?: ChatSender;
   capsules?: CapsuleStore;
   triggers?: TriggerScheduler;
   blockedWords?: BlockedWords;
@@ -65,7 +66,7 @@ export class TwitchRuntime {
     private readonly setLive: (live: boolean) => void,
     private readonly options: RuntimeOptions = {},
   ) {
-    this.sender = new ChatSender(auth, helix);
+    this.sender = options.sender ?? new ChatSender(auth, helix);
     this.capsuleCommands =
       options.capsules && options.blockedWords
         ? new CapsuleCommands(

@@ -85,7 +85,7 @@ function renderOverlay(packet) {
     stage.append(hero);
     return;
   }
-  if (!['queue', 'reveal'].includes(packet.stage)) {
+  if (!['queue', 'reveal', 'prophet'].includes(packet.stage)) {
     clearOverlay();
     return;
   }
@@ -105,9 +105,16 @@ function renderOverlay(packet) {
       ),
       overlayElement('p', 'rail-title', packet.title),
     );
-    rail.append(header, overlayElement('div', 'cards'));
+    rail.append(
+      header,
+      overlayElement('p', 'prophet-banner'),
+      overlayElement('div', 'cards'),
+    );
     stage.append(rail);
   }
+  const banner = stage.querySelector('.prophet-banner');
+  banner.textContent = packet.prophet || '';
+  banner.hidden = !packet.prophet;
   const container = stage.querySelector('.cards');
   const cards = Array.isArray(packet.cards) ? packet.cards.slice(-3) : [];
   const wanted = new Set(cards.map((card) => card.id));
@@ -119,7 +126,17 @@ function renderOverlay(packet) {
     }
   }
   for (const card of cards) {
-    if (overlayCards.has(card.id)) continue;
+    if (overlayCards.has(card.id)) {
+      const existing = overlayCards.get(card.id);
+      if (card.cameTrue && !existing.querySelector('.prophet-stamp')) {
+        existing.classList.add('came-true');
+        existing.append(overlayElement('span', 'prophet-stamp', 'CAME TRUE'));
+        existing
+          .querySelector('.card-name')
+          .append(overlayElement('span', 'prophet-badge', 'PROPHET'));
+      }
+      continue;
+    }
     const element = overlayElement('article', 'reveal-card');
     element.append(
       overlayElement('p', 'card-name', '@' + card.displayName),
@@ -130,6 +147,13 @@ function renderOverlay(packet) {
       ),
       overlayElement('blockquote', '', card.text),
     );
+    if (card.cameTrue) {
+      element.classList.add('came-true');
+      element.append(overlayElement('span', 'prophet-stamp', 'CAME TRUE'));
+      element
+        .querySelector('.card-name')
+        .append(overlayElement('span', 'prophet-badge', 'PROPHET'));
+    }
     container.append(element);
     overlayCards.set(card.id, element);
   }

@@ -337,7 +337,7 @@ addEventListener('keydown', (event) => {
   if (
     !ceremonyBusy &&
     ceremonyData?.active &&
-    ['queue', 'reveal'].includes(ceremonyData.state.stage) &&
+    ['queue', 'reveal', 'prophet'].includes(ceremonyData.state.stage) &&
     ceremonyData.counts.approved > 0
   ) {
     event.preventDefault();

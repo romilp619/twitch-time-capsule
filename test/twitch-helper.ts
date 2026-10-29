@@ -27,6 +27,14 @@ export function json(
   });
 }
 export class FakeTwitch {
+  vips = new Set<string>();
+  vipStatus = 204;
+  vipChanges: Array<{
+    method: string;
+    channel: string | null;
+    user: string | null;
+    role: string;
+  }> = [];
   isMod = false;
   dropMessages = false;
   deleteStatus = 204;
@@ -120,6 +128,27 @@ export class FakeTwitch {
       return this.deleteStatus === 204
         ? new Response(null, { status: 204 })
         : json({ message: 'provider detail' }, this.deleteStatus);
+    }
+    if (url.pathname === '/helix/channels/vips') {
+      const user = url.searchParams.get('user_id') ?? '';
+      if (!init?.method || init.method === 'GET')
+        return json({
+          data: this.vips.has(user)
+            ? [{ user_id: user, user_name: 'Viewer', user_login: 'viewer' }]
+            : [],
+          pagination: {},
+        });
+      this.vipChanges.push({
+        method: init.method,
+        channel: url.searchParams.get('broadcaster_id'),
+        user,
+        role,
+      });
+      if (this.vipStatus !== 204)
+        return json({ message: 'private VIP provider detail' }, this.vipStatus);
+      if (init.method === 'DELETE') this.vips.delete(user);
+      else this.vips.add(user);
+      return new Response(null, { status: 204 });
     }
     if (url.pathname === '/helix/search/categories')
       return json({

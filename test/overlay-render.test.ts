@@ -89,6 +89,7 @@ function card(id: number, text = 'Future message ' + id) {
     id,
     number: id,
     displayName: 'Viewer ' + id,
+    cameTrue: false,
     text,
     createdAt: '2026-10-25T10:00:00Z',
     revealedAt: '2026-10-27T10:00:00Z',
@@ -112,6 +113,31 @@ function text(node: Node): string {
   return node.textContent + ' ' + node.children.map(text).join(' ');
 }
 describe('OBS overlay rendering and privacy', () => {
+  it('updates an already visible card with a Prophet stamp and restores it on reconnect', () => {
+    const { render, stage, flush } = fixture();
+    render(packet('reveal', [card(1)]));
+    const element = stage.querySelector('.cards')!.children[0];
+    const marked = {
+      ...packet('prophet', [{ ...card(1), cameTrue: true }]),
+      prophet: '@Viewer 1 is a Prophet!',
+    };
+    render(marked);
+    expect(stage.querySelector('.cards')!.children[0]).toBe(element);
+    expect(text(stage)).toContain('CAME TRUE');
+    expect(text(stage)).toContain('PROPHET');
+    expect(text(stage)).toContain('@Viewer 1 is a Prophet!');
+    render(marked);
+    expect(
+      element?.children.filter((c) => c.className === 'prophet-stamp'),
+    ).toHaveLength(1);
+    const reconnected = fixture();
+    reconnected.render(marked);
+    expect(text(reconnected.stage)).toContain('CAME TRUE');
+    render(packet('idle'));
+    flush();
+    expect(stage.children).toEqual([]);
+  });
+
   it('renders hostile viewer text literally and never uses innerHTML', () => {
     const { render, stage } = fixture();
     const attack = '<img src=x onerror=alert(1)>';

@@ -193,6 +193,34 @@ export class HelixClient {
       );
     return channel;
   }
+  async isVip(broadcasterId: string, userId: string): Promise<boolean> {
+    const result = await this.request(
+      'streamer',
+      '/channels/vips',
+      z.object({ data: z.array(z.object({ user_id: z.string() })) }),
+      {
+        expectedUserId: broadcasterId,
+        query: { broadcaster_id: broadcasterId, user_id: userId },
+      },
+    );
+    return result.data.some((entry) => entry.user_id === userId);
+  }
+  async changeVip(
+    broadcasterId: string,
+    userId: string,
+    remove = false,
+  ): Promise<void> {
+    if (!broadcasterId || !userId)
+      throw new TwitchError(
+        400,
+        'A channel and viewer are required for VIP changes.',
+      );
+    await this.request('streamer', '/channels/vips', z.undefined(), {
+      expectedUserId: broadcasterId,
+      method: remove ? 'DELETE' : 'POST',
+      query: { broadcaster_id: broadcasterId, user_id: userId },
+    });
+  }
   async currentUser(role: AccountRole): Promise<TwitchUser> {
     const result = await this.request(role, '/users', usersSchema);
     const user = result.data[0];
