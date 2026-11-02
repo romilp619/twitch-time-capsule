@@ -2,24 +2,21 @@
 
 Seal Twitch chat predictions today and reveal them together on a future stream. Choose a manual opening, date, follower goal, or first stream in a category. Approve messages before showing them in OBS, celebrate correct predictions as **Prophets**, and optionally award temporary Twitch VIP.
 
-## Run the demo
+## Run the app in WSL
 
-Requires **Node.js 20.19+ (24 recommended)**, npm, and Git. OBS is only needed to broadcast the overlay.
+Open your Ubuntu/WSL terminal and run:
 
 ```sh
-git clone https://github.com/romilp619/twitch-time-capsule.git
-cd twitch-time-capsule
-npm ci
-npm run demo
+cd ~/hackathon_projects/time-capsule
+export PATH="$PWD/.tools/node/bin:$PATH"
+npm run dev
 ```
 
-Open the **Demo** URL printed in the terminal, normally `http://localhost:3000/demo`, and click **Play full story**. The 90-second walkthrough uses 20 sample viewers and fake Twitch events; no account, credentials, or real chat/VIP changes are involved.
-
-If port 3000 is busy, the demo tries 3001. Choose another port with `npm run demo -- --port=3002`. Press **Ctrl+C** to stop.
+Keep the terminal open. Open the complete private **Dashboard** URL printed in the terminal. Check `http://localhost:3000/health` to confirm the app is running. Press **Ctrl+C** to stop it; stop the current server before starting another on port 3000.
 
 ## Connect a real Twitch channel
 
-1. Stop the demo and copy the configuration template:
+1. On first setup, copy the configuration template. Skip this if you already have a configured `.env`:
 
    ```sh
    cp .env.example .env
@@ -68,7 +65,7 @@ export PATH="$PWD/.tools/node/bin:$PATH"
 npm run dev
 ```
 
-The `.tools/node` runtime is local to that workspace; a fresh clone uses the Node installation from the requirements above. Leave the terminal running. Open `http://localhost:3000/health` and confirm the server and database report `ok`, then open the complete **Dashboard** URL printed in the terminal. Keep its private key out of the recording.
+The `.tools/node` runtime is local to that workspace. If Node is already on your PATH, you can omit the `export` line. Leave the terminal running. Open `http://localhost:3000/health` and confirm the server and database report `ok`, then open the complete **Dashboard** URL printed in the terminal. Keep its private key out of the recording.
 
 ![Healthy server and SQLite database](docs/screenshots/11-health-check.jpg)
 
@@ -258,7 +255,7 @@ _After the ceremony, the public Wall includes Prophet names and their revealed w
 
 ## Source, assets, and checks
 
-All application source and required visual assets are included in this repository. Dependencies install from `package-lock.json`; no paid AI service or external media is needed at runtime.
+All application source and required visual assets are included in this repository. On a fresh checkout, install **Node.js 20.19+ (24 recommended)** and npm, then run `npm ci` once before starting. Dependencies install from `package-lock.json`; no paid AI service or external media is needed at runtime.
 
 | Location            | Contents                                                                    |
 | ------------------- | --------------------------------------------------------------------------- |
