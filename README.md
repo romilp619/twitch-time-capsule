@@ -3,7 +3,7 @@
 https://github.com/user-attachments/assets/54eb0e46-d577-4ddf-8957-cb49f2f766fc
 
 
-Seal Twitch chat predictions today and reveal them together on a future stream. Choose a manual opening, date, follower goal, or first stream in a category. Approve messages before showing them in OBS, celebrate correct predictions as **Prophets**, and optionally award temporary Twitch VIP.
+Twitch Predictions end in 30 minutes. Time Capsule lets chat seal its predictions and messages for days or weeks, then opens them live on stream at the moment that matters. Viewers type !seal in chat and the bot hides each message right away. The capsule opens on a date, at a follower goal, on the first stream in a new game, or whenever the streamer chooses. Mods approve messages before they appear in OBS, and viewers who called it right become Prophets, with optional Twitch VIP.
 
 ## Run the app in WSL
 
