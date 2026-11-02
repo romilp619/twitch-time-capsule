@@ -288,4 +288,15 @@ npm start
 
 Normal mode saves capsules, account tokens, and private keys under `data/`; demo mode uses separate fresh storage under `data/demo/`. Keep `data/` across restarts and keep `.env`, tokens, and dashboard/overlay keys private. Temporary VIP expiry is processed while the app is running and at the next startup. Localhost public links work only on the host computer; hosting needs persistent storage, a reachable HTTPS `BASE_URL`, and a matching Twitch callback.
 
+## How Codex helped
+
+Codex was my coding partner throughout the build. I provided the idea, feature choices, screenshots, and live Twitch/OBS feedback; Codex helped turn that feedback into working code.
+
+- Built the TypeScript/SQLite backend, Twitch OAuth and EventSub integration, capsule commands, opening conditions, and moderation workflow.
+- Improved the dashboard, transparent OBS overlay, scrolling winner showcase, and public Wall of Prophets through repeated screenshot-based feedback.
+- Wrote and ran tests for privacy, approvals, persistence, and large winner collections; checked builds and helped troubleshoot startup and ceremony scheduling issues.
+- Prepared the isolated demo, WSL commands, step-by-step walkthrough, and screenshot documentation.
+
+I tested the real account connections, chat interactions, and stream output and decided which changes to keep. Codex helped during development; the running app does not require an OpenAI API key or an AI service.
+
 MIT license — see [LICENSE](LICENSE).
