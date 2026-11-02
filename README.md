@@ -46,13 +46,17 @@ If port 3000 is busy, the demo tries 3001. Choose another port with `npm run dem
 
 ## Step-by-step live walkthrough
 
-This recording example uses **romilg16** as the streamer, **romil100** as the bot, and **romiltest1 / romiltest2** as viewers. Use your own accounts for these roles. Complete the Twitch setup above first; keep existing working account connections and API configuration.
+This recording example uses **romilg16** as the streamer, **romil100** as the bot, and **romiltest1 / romiltest2** as viewers. Use your own accounts for these roles. Complete the Twitch setup above first; keep existing working account connections and API configuration. Screenshots are examples from earlier runs, so capsule titles, message text, and counts may differ from this walkthrough.
 
 ### 1. Prepare separate browser sessions
 
 - Keep your main browser signed into **romilg16**, with the Time Capsule dashboard open.
 - Use separate browser profiles or private windows for **romiltest1** and **romiltest2**. Keep them as ordinary viewers, not moderators.
 - Send all test chat messages in **romilg16's channel**. Do not send viewer tests from **romil100**; the app ignores its sending bot account.
+
+![Streamer and bot account roles](docs/screenshots/01-connect-accounts.png)
+
+_Keep the streamer, bot, and viewer sessions separate._
 
 ### 2. Start the app — Phase 1
 
@@ -65,6 +69,10 @@ npm run dev
 ```
 
 The `.tools/node` runtime is local to that workspace; a fresh clone uses the Node installation from the requirements above. Leave the terminal running. Open `http://localhost:3000/health` and confirm the server and database report `ok`, then open the complete **Dashboard** URL printed in the terminal. Keep its private key out of the recording.
+
+![Healthy server and SQLite database](docs/screenshots/11-health-check.jpg)
+
+_The health check reports server and database status. This capture uses isolated demo mode._
 
 ### 3. Verify the accounts — Phase 2
 
@@ -83,6 +91,10 @@ If reconnecting, sign into the intended Twitch account before authorizing each r
 
 Click **Recheck connection**. Confirm **Ready to moderate** and **EventSub: Connected**. End any previous active ceremony before starting a new walkthrough.
 
+![Streamer and bot connected with EventSub ready](docs/screenshots/01-connect-accounts.png)
+
+_Both Twitch accounts are connected, with moderation and EventSub status visible._
+
 ### 4. Test chat — Phase 3
 
 From **romiltest1**, send:
@@ -93,6 +105,10 @@ hello Time Capsule
 ```
 
 Check **Connection details & activity → Channel activity** and the bot's reply. With no collecting capsule, “No capsule is open for sealing” is expected. Wait 30 seconds between repeated `!capsule` status checks.
+
+![Twitch channel chat and bot replies](docs/screenshots/03-viewers-seal-in-chat.png)
+
+_Use this channel chat for viewer commands and check the bot replies._
 
 ### 5. Prepare OBS and the overlay
 
@@ -109,6 +125,10 @@ Check **Connection details & activity → Channel activity** and the bot's reply
 
 Place the Browser Source above the background capture, with both eye icons visible. Click **Play 10-second preview** in the dashboard. Expect the opening and sample cards, followed by an empty, transparent overlay. You do not need to open the overlay URL in a browser first. Keep private dashboard pages, credentials, and keys out of the public stream.
 
+![OBS Browser Source and streaming controls](docs/screenshots/12-obs-browser-source.png)
+
+_The Browser Source is added to OBS. An idle transparent overlay can appear black when no background capture is visible._
+
 ### 6. Create the capsule — Phase 4
 
 | Setting                  | Example value                                            |
@@ -121,6 +141,10 @@ Place the Browser Source above the background capture, with both eye icons visib
 | VIP days                 | 30                                                       |
 
 Click **Create & start collecting**. Confirm **SEALING** with zero messages. **Do not click Open now yet.** By default, a capsule allows 3 messages per viewer; this example raises that limit to 5. Each message needs 3–280 characters after `!seal`, with at least 10 seconds between accepted messages from the same viewer.
+
+![Capsule created and collecting messages](docs/screenshots/02-create-capsule.png)
+
+_A newly created capsule is collecting messages; opening comes after collection._
 
 ### 7. Send two predictions from romiltest1
 
@@ -136,6 +160,10 @@ Wait at least **10 seconds**, then send:
 
 Show the bot hiding the submissions and sending numbered confirmations. Messages can appear briefly before being hidden; broadcaster and moderator submissions cannot be hidden.
 
+![Viewer seals a prediction and receives a numbered reply](docs/screenshots/03-viewers-seal-in-chat.png)
+
+_The bot hides a viewer submission and confirms its seal number._
+
 ### 8. Send two messages from romiltest2
 
 ```text
@@ -150,9 +178,17 @@ Wait at least **10 seconds**, then send:
 
 The capsule should now show **4 sealed messages**.
 
+![Dashboard sealed-message count](docs/screenshots/04-sealed-count.png)
+
+_The sealed-message count increases as viewers submit their messages._
+
 ### 9. Show the public page before opening
 
 Click **View public page**. Show the title, opening condition, and count; sealed message contents remain hidden. Keep this page available for the final result.
+
+![Public capsule before opening with hidden contents](docs/screenshots/13-public-page-sealed.png)
+
+_Before opening, the public page shows the title and count while message contents stay hidden._
 
 ### 10. Start the live recording — Phase 5
 
@@ -163,11 +199,19 @@ Set the stream title to **Time Capsule — Live Demo** and choose **Just Chattin
 
 Confirm **romilg16 is LIVE**. Click **Recheck connection** if the dashboard has not updated.
 
+![Twitch live stream with Time Capsule overlay](docs/screenshots/09-live-on-twitch.png)
+
+_Confirm the channel is live; the overlay appears over the broadcast when messages are revealed._
+
 ### 11. Open the capsule
 
 While live, click **Open now once**. Allow approximately **5 seconds** of trigger delay, then **6 seconds** of opening animation. New seals are no longer accepted once the capsule is ready/opening.
 
 If requested while offline, the capsule stays **READY** until you go live, then waits the configured settling delay (default **60 seconds**). A previous active ceremony must end before another capsule can open; the dashboard explains when it is queued.
+
+![Opened capsule and moderation queue](docs/screenshots/06-mod-approves.png)
+
+_After the opening finishes, the ceremony displays messages for moderation._
 
 ### 12. Approve and reveal — Phase 6
 
@@ -180,6 +224,14 @@ In **Opening ceremony**:
 
 Record the approved cards appearing in OBS. The rejected message must not appear. If **Pending** is empty, choose **Approved** or **All**. Auto-reveal follows the interval saved under **OBS overlay**. Keep the ceremony active for the next step.
 
+![Approve messages in the private queue](docs/screenshots/06-mod-approves.png)
+
+_Approve the first three messages and reject the fourth before revealing._
+
+![Ceremony reveal and auto-reveal controls](docs/screenshots/07-reveal-on-stream.png)
+
+_Reveal approved messages manually or start auto-reveal._
+
 ### 13. Mark a prediction true — Phase 7
 
 The prediction “this message will appear on stream” has now happened. In **Prophets**, find that prediction from **romiltest1** and click **Came true**. Show:
@@ -190,11 +242,19 @@ The prediction “this message will appear on stream” has now happened. In **P
 
 VIP is optional and requires channel eligibility and an available slot. Prophet recognition still works if VIP is disabled or Twitch refuses the role.
 
+![Prophets dashboard and Came true action](docs/screenshots/08-prophet-came-true.png)
+
+_Use Came true for a prediction that has been revealed and proven correct._
+
 ### 14. End the ceremony and show the public result
 
 Click **End ceremony**. The capsule becomes **OPENED** and the overlay clears. Refresh the public capsule page: **romiltest1** appears on the **Wall of Prophets** with the revealed winning message. Other message contents stay private.
 
 To replay winners afterward, select the completed capsule under **Prophets → Stream Prophet showcase**. Playback scrolls automatically and supports pause, next, and stop without repeating rewards or chat announcements.
+
+![Public Wall of Prophets with a winning message](docs/screenshots/14-public-winning-message.jpg)
+
+_After the ceremony, the public Wall includes Prophet names and their revealed winning predictions._
 
 ## Source, assets, and checks
 
