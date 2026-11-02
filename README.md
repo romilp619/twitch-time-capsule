@@ -2,8 +2,6 @@
 
 Time Capsule lets Twitch viewers seal free-text predictions and messages, then reveal them together during a future stream. A streamer can choose a date, a follower goal, a first stream in a category, or a manual opening. Moderators approve reveals; predictions that come true earn a place on the Wall of Prophets, with optional temporary VIP. The OBS overlay stays empty and transparent outside a ceremony. No paid AI or external AI service is used at runtime.
 
-**Why:** Twitch Predictions last at most 30 minutes and only cover the current stream. Time Capsule lets chat seal its own words for days or weeks, then opens them live at the moment that matters.
-
 ## Screenshots
 
 | | |
@@ -14,37 +12,193 @@ Time Capsule lets Twitch viewers seal free-text predictions and messages, then r
 | **7. Reveal messages one by one** on stream<br>![Reveal](docs/screenshots/07-reveal-on-stream.png) | **8. Mark a prediction as "Came true".** That viewer becomes a Prophet (optional VIP)<br>![Prophet](docs/screenshots/08-prophet-came-true.png) |
 | **9. Live on Twitch** (Stream Manager preview with the overlay)<br>![Live on Twitch](docs/screenshots/09-live-on-twitch.png) | **10. Public capsule page** with the Wall of Prophets<br>![Wall of Prophets](docs/screenshots/10-public-wall-of-prophets.png) |
 
-## Easy setup
+## Step-by-step guide
 
-### Option A: try it in 1 minute (no Twitch account needed)
+### 1. Prepare separate browser sessions
 
-Needs [Node.js](https://nodejs.org) 20.19 or newer.
+- Keep your main browser signed into **romilg16**, with the Time Capsule dashboard open.
+- Use separate browser profiles or private windows for **romiltest1** and **romiltest2**.
+- Keep both viewers as ordinary viewers, not moderators. Don't send viewer tests from **romil100**, because the app ignores its own bot account.
+
+### 2. Start the app (Phase 1)
+
+If it is already running, use that server. Otherwise, open WSL:
 
 ```sh
-npm ci
-npm run demo
+cd ~/hackathon_projects/time-capsule
+export PATH="$PWD/.tools/node/bin:$PATH"
+npm run dev
 ```
 
-Open <http://localhost:3000/demo> and click **Play full story**. It runs the whole flow with fake viewers: sealing, opening, reveal and a Prophet.
+- Leave the terminal running.
+- Open `localhost:3000/health`. Show that the server and database report `ok`.
+- Open the complete **Dashboard** URL printed in the terminal. Keep its private key out of your recording.
+- Your existing Twitch API configuration can remain.
 
-### Option B: use it on your real Twitch channel
+### 3. Verify the streamer and bot (Phase 2)
 
-1. **Register a Twitch app** at <https://dev.twitch.tv/console/apps>: category **Chat Bot**, client type **Confidential**, redirect URL `http://localhost:3000/auth/callback`.
-2. **Copy `.env.example` to `.env`** and fill in `TWITCH_CLIENT_ID` and `TWITCH_CLIENT_SECRET`.
-3. **Start it:** `npm ci` then `npm run dev`. Open the **Dashboard** link printed in the terminal (keep it private).
-4. **Connect your streamer account** (and optionally a bot account). For a separate bot, type `/mod yourbotname` in your Twitch chat.
-5. **Add the overlay to OBS:** Dashboard → OBS overlay → Copy OBS URL → in OBS add a **Browser** source, paste the URL, size **1920 × 1080**.
-6. **Create a capsule** in the dashboard. Viewers type `!seal your prediction` in chat. When it opens, approve and reveal messages from the dashboard.
+The dashboard should show:
 
-Run the tests with `npm test`.
+- **Your channel:** romilg16, Connected
+- **Your capsule keeper:** romil100, Connected
 
-## How I used OpenAI Codex
+Keep those connections if they already work. If reconnecting, check which Twitch account is signed in before authorizing: **romilg16** for *Connect streamer account*, **romil100** for *Connect bot account*.
 
-The whole app was built in one Codex thread, phase by phase, from the specification in [CODEX_PROMPT.md](./CODEX_PROMPT.md): project skeleton, Twitch OAuth, EventSub WebSocket and chat, capsules and sealing, opening triggers, the ceremony and OBS overlay, Prophets and VIP, and the account-free demo mode. Each phase was tested and committed before the next one (see the commit history), and Codex wrote the automated test suite.
+### 4. Give the bot moderator permission
 
----
+As romilg16, send this in your own channel chat:
 
-The sections below are the full technical documentation.
+```
+/mod romil100
+```
+
+Click **Recheck connection** in Time Capsule. Show **Ready to moderate** and **EventSub: Connected**.
+
+### 5. Clear old test data (optional, for a clean recording)
+
+- End any active ceremony first.
+- Use **Capsules → Delete all** only if you want to permanently remove the old test capsules and their messages.
+- Leave your accounts and API configuration connected.
+
+### 6. Test chat (Phase 3)
+
+From romiltest1, send:
+
+```
+hello Time Capsule
+```
+
+Then:
+
+```
+!capsule
+```
+
+Record the message appearing in **Channel activity** and romil100 replying. With no collecting capsule, "No capsule is open for sealing" is expected. Wait 30 seconds between repeated `!capsule` status checks.
+
+### 7. Prepare OBS
+
+- In **OBS → Settings → Stream**, confirm the connected Twitch account is romilg16.
+- Create a scene named **Time Capsule Demo**.
+- Add a safe **Window Capture**, such as Notepad displaying "Time Capsule Demo". You do not need to play a game.
+- Keep private dashboard pages, credentials, and URLs out of the public stream.
+
+### 8. Add the Time Capsule overlay
+
+In the dashboard, find **Your OBS overlay → Copy OBS URL**. In OBS:
+
+| Setting | Value |
+|---|---|
+| Source | Sources → + → **Browser** |
+| Name | Time Capsule Overlay |
+| URL | Paste the private overlay URL |
+| Width | 1920 |
+| Height | 1080 |
+| Shutdown source when not visible | Off |
+| Refresh browser source when scene becomes active | Off |
+
+Put the Browser Source above your background capture, with both eye icons visible. Click **Play 10-second preview** in the dashboard. Show the opening and sample cards, followed by an empty overlay.
+
+### 9. Create your capsule (Phase 4)
+
+| Setting | Value |
+|---|---|
+| Title | Our First Time Capsule |
+| Opening condition | When I choose |
+| Seals per viewer | 5 |
+| Maximum length | 280 |
+| Reward Prophets with VIP | Enabled |
+| VIP days | 30 |
+
+Click **Create capsule**. Show **SEALING** with zero messages. Don't click **Open now** yet.
+
+### 10. Send two predictions from romiltest1
+
+```
+!seal I predict this message will appear on stream.
+```
+
+Wait at least 10 seconds, then send:
+
+```
+!seal I predict we will see a gold capsule opening.
+```
+
+Show the messages disappearing and romil100 sending numbered confirmations.
+
+### 11. Send two messages from romiltest2
+
+```
+!seal Hello to everyone watching this later.
+```
+
+Wait at least 10 seconds, then send:
+
+```
+!seal Reject this message for the moderation demonstration.
+```
+
+The capsule should now show **4 sealed messages**.
+
+### 12. Show the public page before opening
+
+Click **View public page**. Record the title, opening condition, and count. The sealed messages should remain hidden. Keep this public page available for the final result.
+
+### 13. Start the live recording (Phase 5)
+
+- Set your stream title to **Time Capsule Live Demo** and choose an available category such as **Just Chatting**.
+- In OBS, use your safe background with the overlay above it.
+- **Start Recording** saves your local video. **Start Streaming** broadcasts to Twitch. OBS supports recording and streaming together.
+- Confirm romilg16 is **LIVE**. Click **Recheck connection** if the dashboard hasn't updated.
+
+### 14. Open the capsule
+
+- While live, click **Open now**.
+- Allow approximately 5 seconds of trigger delay, then 6 seconds of opening animation.
+- If you clicked **Open now** while offline, it stays **READY** until you go live. The configured offline settling delay is 60 seconds.
+
+### 15. Approve and reveal (Phase 6)
+
+In the private moderation queue:
+
+1. Approve **#1, #2, and #3**.
+2. Reject **#4**.
+3. Click **Reveal next** to reveal #1.
+4. Click **Start auto-reveal** for the remaining approved messages.
+
+Record the approved cards appearing in OBS. The rejected message must never appear. If **Pending** becomes empty, change the filter to **Approved** or **All**. Keep the ceremony active for the next step.
+
+### 16. Mark a prediction true (Phase 7)
+
+The prediction "this message will appear on stream" has now happened. In **Prophets**, find that prediction from romiltest1 and click **Came true**. Record:
+
+- **PROPHET** badge
+- **CAME TRUE** stamp
+- romil100's announcement mentioning romiltest1
+
+VIP is a separate result. If granted, show the confirmation and expiry. If Twitch refuses it, show the error honestly. The Prophet recognition still works.
+
+### 17. End the ceremony and show the Wall of Prophets
+
+- Click **End ceremony**.
+- Show the capsule becoming **OPENED** and the overlay clearing.
+- Refresh the public capsule page. romiltest1 should appear on the **Wall of Prophets**.
+- Keep this capsule until you finish recording its results.
+
+### 18. Record the other trigger options as separate tests
+
+End each ceremony before opening another capsule. Lock or archive any current collecting capsule before creating another.
+
+| Test | What to demonstrate |
+|---|---|
+| Date | Choose a time 2–3 minutes ahead, seal before the deadline, and wait for the date check. |
+| Follower goal | Set a goal above the current total. Have a test account that does not already follow romilg16 follow the channel. |
+| Category | Select a category different from the current stream category. Collect seals, then change Twitch's category to the selected one while live. |
+| Postpone | Click **Postpone 10 min** and show the new deadline. |
+| Lock sealing | Show that new seals stop while existing messages stay saved. |
+| Archive | Show the preserved capsule in its archived state. |
+
+A condition reached while already live normally uses the 5-second delay. A capsule made ready offline waits for the next live stream and the configured 60-second settling delay.
 
 ## Build status
 
