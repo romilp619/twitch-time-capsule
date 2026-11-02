@@ -4,13 +4,24 @@ Seal Twitch chat predictions today and reveal them together on a future stream. 
 
 ## Run the app in WSL
 
-Open your Ubuntu/WSL terminal and run:
+Open your Ubuntu/WSL terminal. For a fresh clone, install **Node.js 20.19+ (24 recommended)**, npm, and Git inside WSL first.
+
+Clone the project once:
+
+```sh
+git clone https://github.com/romilp619/twitch-time-capsule.git ~/hackathon_projects/time-capsule
+```
+
+Then install dependencies and start the app:
 
 ```sh
 cd ~/hackathon_projects/time-capsule
 export PATH="$PWD/.tools/node/bin:$PATH"
+npm ci
 npm run dev
 ```
+
+On later runs, skip `git clone` and `npm ci`. The `.tools/node` path is for the existing workspace; a fresh clone uses your installed WSL Node/npm.
 
 Keep the terminal open. Open the complete private **Dashboard** URL printed in the terminal. Check `http://localhost:3000/health` to confirm the app is running. Press **Ctrl+C** to stop it; stop the current server before starting another on port 3000.
 
