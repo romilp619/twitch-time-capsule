@@ -1,8 +1,7 @@
 # Time Capsule
 
-[![Watch Time Capsule explained](docs/videos/TimeCapsule-explained-preview.jpg)](docs/videos/TimeCapsule-explained.mp4)
+https://github.com/user-attachments/assets/54eb0e46-d577-4ddf-8957-cb49f2f766fc
 
-[▶ Watch Time Capsule explained — 1 minute 22 seconds](docs/videos/TimeCapsule-explained.mp4)
 
 Seal Twitch chat predictions today and reveal them together on a future stream. Choose a manual opening, date, follower goal, or first stream in a category. Approve messages before showing them in OBS, celebrate correct predictions as **Prophets**, and optionally award temporary Twitch VIP.
 
