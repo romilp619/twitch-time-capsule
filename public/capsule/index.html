@@ -41,13 +41,34 @@
           <p class="privacy-note">
             Messages may be visible briefly before the bot deletes them.
             Moderator and broadcaster messages remain visible in Twitch chat.
-            This page never shows sealed message contents.
+            After the ceremony ends, revealed predictions marked Came true
+            appear on the public Wall. Other message contents stay private.
           </p>
         </section>
         <section id="prophet-wall" class="how-to" hidden>
           <h2>Wall of Prophets</h2>
-          <p>They saw it coming.</p>
+          <p id="wall-total">They saw it coming.</p>
+          <label class="wall-search"
+            >Find a Prophet<input
+              id="wall-search"
+              type="search"
+              maxlength="100"
+              placeholder="Search viewer names"
+          /></label>
+          <p
+            id="wall-status"
+            class="muted"
+            role="status"
+            aria-live="polite"
+          ></p>
           <div id="prophet-wall-list"></div>
+          <div class="wall-pagination">
+            <button id="wall-prev" type="button" disabled>
+              Previous Prophets
+            </button>
+            <span id="wall-page" aria-live="polite"></span>
+            <button id="wall-next" type="button" disabled>Next Prophets</button>
+          </div>
         </section>
         <p id="closed-note" class="closed-note" hidden></p>
       </section>

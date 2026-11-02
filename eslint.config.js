@@ -10,6 +10,7 @@ export default tseslint.config(
       '.tools/**',
       '.tmp/**',
       'coverage/**',
+      'demo-video/**',
     ],
   },
   {

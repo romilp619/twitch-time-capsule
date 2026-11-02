@@ -120,16 +120,36 @@ export class Prophets {
         'Reconnect the channel that owns this capsule before changing its rewards.',
       );
   }
-  list(offset = 0, limit = 50) {
+  list(
+    offset = 0,
+    limit = 50,
+    query = '',
+    filter: 'all' | 'true' | 'unmarked' = 'all',
+  ) {
+    const where =
+      " WHERE s.status='revealed'" +
+      (filter === 'true'
+        ? ' AND s.came_true=1'
+        : filter === 'unmarked'
+          ? ' AND s.came_true=0'
+          : '') +
+      (query
+        ? ' AND (instr(lower(s.display_name), lower(?)) > 0 OR instr(lower(s.text), lower(?)) > 0 OR instr(lower(c.title), lower(?)) > 0)'
+        : '');
+    const params = query ? [query, query, query] : [];
     const rows = this.db
       .prepare(
         rowsSql +
-          " WHERE s.status='revealed' ORDER BY s.revealed_at DESC, s.id DESC LIMIT ? OFFSET ?",
+          where +
+          ' ORDER BY s.revealed_at DESC, s.id DESC LIMIT ? OFFSET ?',
       )
-      .all(limit, offset) as RewardRow[];
+      .all(...params, limit, offset) as RewardRow[];
     const { total } = this.db
-      .prepare("SELECT COUNT(*) AS total FROM seals WHERE status='revealed'")
-      .get() as { total: number };
+      .prepare(
+        'SELECT COUNT(*) AS total FROM seals s JOIN capsules c ON c.id=s.capsule_id' +
+          where,
+      )
+      .get(...params) as { total: number };
     return {
       total,
       offset,

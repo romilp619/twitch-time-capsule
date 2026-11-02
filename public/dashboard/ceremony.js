@@ -7,10 +7,17 @@ let queueTotal = 0;
 let queueVersion = 0;
 let queueSignature = '';
 let currentOverlayUrl = '';
+const dismissedProphetReminders = new Set();
 const ceremonyFeedback = document.getElementById('ceremony-feedback');
 function ceremonyMessage(text, failure = false) {
-  ceremonyFeedback.textContent = text;
-  ceremonyFeedback.className = text
+  const feedbackTarget =
+    document.getElementById('view-overlay')?.hidden === false
+      ? document.getElementById('overlay-feedback')
+      : document.getElementById('view-prophets')?.hidden === false
+        ? document.getElementById('prophets-feedback')
+        : ceremonyFeedback;
+  feedbackTarget.textContent = text;
+  feedbackTarget.className = text
     ? 'banner ' + (failure ? 'danger' : 'success')
     : '';
 }
@@ -35,9 +42,35 @@ function ceremonyNode(tag, className, text) {
   if (text !== undefined) element.textContent = text;
   return element;
 }
+function updateProphetReminder(data) {
+  const complete =
+    data.active &&
+    !data.previewActive &&
+    ['reveal', 'prophet'].includes(data.state.stage) &&
+    data.counts.revealed > 0 &&
+    data.counts.pending === 0 &&
+    data.counts.approved === 0;
+  document.getElementById('prophets-reminder').hidden =
+    !complete || dismissedProphetReminders.has(data.state.capsuleId);
+}
+function dismissProphetReminder() {
+  if (ceremonyData?.state.capsuleId)
+    dismissedProphetReminders.add(ceremonyData.state.capsuleId);
+  document.getElementById('prophets-reminder').hidden = true;
+}
+document
+  .getElementById('dismiss-prophets-reminder')
+  .addEventListener('click', dismissProphetReminder);
+document.getElementById('go-to-prophets').addEventListener('click', () => {
+  dismissProphetReminder();
+  document.getElementById('prophets-title').focus({ preventScroll: true });
+  void globalThis.refreshProphets?.();
+});
 function renderCeremony(data) {
   if (!data) return;
   ceremonyData = data;
+  globalThis.updateWorkspace?.({ ceremony: data });
+  updateProphetReminder(data);
   const stage = data.state.stage;
   document.getElementById('ceremony-stage').textContent = data.previewActive
     ? 'PREVIEW'
@@ -46,13 +79,19 @@ function renderCeremony(data) {
     ? data.capsule.title +
       (stage === 'opening'
         ? ' · Opening animation is playing for six seconds.'
-        : ' · Approve messages, then reveal them on stream.')
+        : data.counts.pending === 0 &&
+            data.counts.approved === 0 &&
+            data.counts.revealed === 0
+          ? ' · No messages remain to reveal. End this ceremony to let another capsule open.'
+          : ' · Approve messages, then reveal them on stream.')
     : data.previewActive
       ? 'A ten-second preview is playing. No capsule or Twitch data is changed.'
       : stage === 'ended'
         ? 'Ceremony ended. The overlay is empty and transparent.'
-        : 'Waiting for a capsule to open. Use the preview below to check OBS without going live.';
+        : 'Waiting for a capsule to open. Open OBS overlay to preview without going live.';
   document.getElementById('ceremony-controls').hidden = !data.active;
+  document.getElementById('prophets-end-ceremony').hidden = !data.active;
+  document.getElementById('prophets-end-ceremony').disabled = ceremonyBusy;
   document.getElementById('ceremony-counts').textContent =
     data.counts.pending +
     ' pending · ' +
@@ -62,6 +101,15 @@ function renderCeremony(data) {
     ' rejected · ' +
     data.counts.revealed +
     ' revealed';
+  document.getElementById('approve-all-pending').disabled =
+    ceremonyBusy || !data.active || data.counts.pending === 0;
+  document.getElementById('approve-all-pending').textContent =
+    'Approve all pending' +
+    (data.counts.pending > 0 ? ' (' + data.counts.pending + ')' : '');
+  document.getElementById('auto-reveal-timing').textContent =
+    'Auto-reveal waits ' +
+    data.settings.autoRevealSeconds +
+    ' seconds before the first message and between messages.';
   document.getElementById('reveal-next').disabled =
     ceremonyBusy ||
     !data.active ||
@@ -113,6 +161,9 @@ async function loadCeremony() {
       currentOverlayUrl = data.overlayUrl;
       document.getElementById('obs-url').value = currentOverlayUrl;
       document.getElementById('overlay-monitor').src = currentOverlayUrl;
+      const overlayLink = document.getElementById('open-showcase-overlay');
+      overlayLink.href = currentOverlayUrl;
+      overlayLink.setAttribute('aria-disabled', 'false');
     }
     renderCeremony(data.ceremony);
   } catch (error) {
@@ -218,7 +269,11 @@ async function refreshModQueue() {
         ceremonyNode(
           'p',
           'muted',
-          'No messages in this filter. Approve pending messages before revealing them.',
+          filter === 'pending' && ceremonyData.counts.approved > 0
+            ? 'No pending messages. Your approved messages are ready to reveal.'
+            : filter === 'pending' && ceremonyData.counts.revealed > 0
+              ? 'All messages in this queue are reviewed. Go to Prophets to mark the winners.'
+              : 'No messages in this filter. Choose another filter to see more.',
         ),
       );
     document.getElementById('queue-page').textContent = queueTotal
@@ -249,6 +304,14 @@ function revealNext() {
     ceremonyMessage('Approved message revealed on the overlay.');
   });
 }
+document.getElementById('approve-all-pending').addEventListener('click', () => {
+  void ceremonyAction(async () => {
+    const result = await ceremonyApi('/api/ceremony/approve-all', 'POST');
+    ceremonyMessage(
+      result.approved + ' pending message(s) approved. Ready to reveal.',
+    );
+  });
+});
 document.getElementById('reveal-next').addEventListener('click', revealNext);
 document.getElementById('auto-reveal').addEventListener('click', () => {
   void ceremonyAction(async () => {
@@ -261,13 +324,17 @@ document.getElementById('auto-reveal').addEventListener('click', () => {
     );
   });
 });
-document.getElementById('end-ceremony').addEventListener('click', () => {
+function endCeremony() {
   void ceremonyAction(async () => {
     await ceremonyApi('/api/ceremony/end', 'POST');
     ceremonyMessage('Ceremony ended. The overlay is now empty.');
     globalThis.renderCapsules?.((await ceremonyApi('/api/capsules')).capsules);
   });
-});
+}
+document.getElementById('end-ceremony').addEventListener('click', endCeremony);
+document
+  .getElementById('prophets-end-ceremony')
+  .addEventListener('click', endCeremony);
 document.getElementById('preview-overlay').addEventListener('click', () => {
   void ceremonyAction(async () => {
     await ceremonyApi('/api/ceremony/preview', 'POST');
@@ -335,6 +402,7 @@ addEventListener('keydown', (event) => {
   )
     return;
   if (
+    document.getElementById('view-ceremony')?.hidden !== true &&
     !ceremonyBusy &&
     ceremonyData?.active &&
     ['queue', 'reveal', 'prophet'].includes(ceremonyData.state.stage) &&

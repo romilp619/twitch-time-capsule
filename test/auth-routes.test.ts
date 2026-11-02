@@ -49,6 +49,55 @@ describe('Private dashboard and OAuth routes', () => {
     expect(page.body).not.toContain(config.adminKey);
     expect((await app.inject('/dashboard/app.js')).statusCode).toBe(200);
   });
+  it('protects account connection links and rejects invalid roles', async () => {
+    const { app, config, fake } = fixture();
+    for (const url of [
+      '/auth/connect?role=streamer',
+      '/auth/connect?key=wrong&role=bot',
+    ]) {
+      const response = await app.inject(url);
+      expect(response.statusCode).toBe(401);
+      expect(response.headers['set-cookie']).toBeUndefined();
+      expect(response.headers.location).toBeUndefined();
+    }
+    const invalid = await app.inject(
+      '/auth/connect?key=' + config.adminKey + '&role=admin',
+    );
+    expect(invalid.statusCode).toBe(400);
+    expect(invalid.headers.location).toBeUndefined();
+    expect(fake.fetch).not.toHaveBeenCalled();
+  });
+  it.each(['streamer', 'bot'] as const)(
+    'opens %s authorization from a navigation link with browser-bound state',
+    async (role) => {
+      const { app, config, headers } = fixture();
+      const start = await app.inject(
+        '/auth/connect?key=' + config.adminKey + '&role=' + role,
+      );
+      expect(start.statusCode).toBe(302);
+      const target = new URL(String(start.headers.location));
+      expect(target.origin).toBe('https://id.twitch.tv');
+      expect(target.pathname).toBe('/oauth2/authorize');
+      expect(target.toString()).not.toContain(config.adminKey);
+      expect(target.toString()).not.toContain('private-client-secret');
+      expect(start.headers['referrer-policy']).toBe('no-referrer');
+      expect(start.headers['cache-control']).toBe('no-store');
+      const binding = String(start.headers['set-cookie']);
+      expect(binding).toContain('HttpOnly');
+      expect(binding).toContain('SameSite=Lax');
+      const state = target.searchParams.get('state');
+      const callback = await app.inject({
+        url: '/auth/callback?state=' + state + '&code=' + role + '-code',
+        headers: { cookie: binding.split(';')[0] ?? '' },
+      });
+      expect(callback.statusCode).toBe(302);
+      expect(callback.headers.location).toContain('notice=connected');
+      const status = (
+        await app.inject({ url: '/api/connection', headers })
+      ).json();
+      expect(status[role].status).toBe('connected');
+    },
+  );
   it('completes a browser-bound OAuth callback, persists tokens, and exposes names without secrets', async () => {
     const { app, headers, fake } = fixture();
     const start = await app.inject({

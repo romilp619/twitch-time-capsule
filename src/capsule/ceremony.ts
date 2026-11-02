@@ -1,3 +1,4 @@
+import { ProphetShowcase } from './showcase.js';
 import type Database from 'better-sqlite3';
 import type { EventLog } from '../db/events.js';
 import { CapsuleError } from './model.js';
@@ -25,6 +26,7 @@ interface SealRow {
 export type QueueFilter =
   'pending' | 'approved' | 'rejected' | 'revealed' | 'all';
 export class Ceremony {
+  readonly showcase: ProphetShowcase;
   private timer: ReturnType<typeof setInterval> | undefined;
   private previewAt: number | null = null;
   private previewSignature = '';
@@ -38,6 +40,7 @@ export class Ceremony {
     private readonly changed: () => void,
     private readonly now: () => number = Date.now,
   ) {
+    this.showcase = new ProphetShowcase(db, store, log, changed, now);
     db.prepare(
       'INSERT OR IGNORE INTO ceremony_runtime (id, state, settings) VALUES (1, ?, ?)',
     ).run(
@@ -82,6 +85,7 @@ export class Ceremony {
         409,
         'The capsule must be opening before its ceremony can begin.',
       );
+    this.showcase.stop();
     this.save(
       transitionCeremony(current, { type: 'begin', capsuleId: id }, this.now()),
     );
@@ -106,6 +110,7 @@ export class Ceremony {
     }
   }
   tick(): void {
+    this.showcase.tick();
     let state = this.state();
     if (!isCeremonyActive(state)) {
       const opening = this.db
@@ -252,6 +257,25 @@ export class Ceremony {
     });
     this.notify();
   }
+  approveAllPending(): number {
+    let capsuleId: number | null = null;
+    const approved = this.db
+      .transaction(() => {
+        const state = this.requireActive();
+        capsuleId = state.capsuleId;
+        return this.db
+          .prepare(
+            "UPDATE seals SET status = 'approved' WHERE capsule_id = ? AND status = 'pending'",
+          )
+          .run(capsuleId).changes;
+      })
+      .immediate();
+    if (approved > 0) {
+      this.log.write('seal.approved_all', { capsuleId, count: approved });
+      this.notify();
+    }
+    return approved;
+  }
   revealNext(): void {
     let selected: number | undefined;
     this.db
@@ -366,6 +390,11 @@ export class Ceremony {
     this.notify();
   }
   preview(): void {
+    if (this.showcase.active)
+      throw new CapsuleError(
+        409,
+        'Stop the Prophet showcase before starting a preview.',
+      );
     if (isCeremonyActive(this.state()))
       throw new CapsuleError(
         409,
@@ -390,6 +419,8 @@ export class Ceremony {
   }
   overlay() {
     const settings = this.settings();
+    const showcase = this.showcase.overlay(settings);
+    if (showcase) return showcase;
     if (this.previewAt !== null) {
       const elapsed = this.now() - this.previewAt;
       const messages = [

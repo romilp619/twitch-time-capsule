@@ -126,6 +126,26 @@ export function registerCapsuleRoutes(
     if (!parsed.success) throw new CapsuleError(404, 'Capsule not found.');
     return parsed.data.slug;
   };
+  app.get('/api/public/capsules/:slug/prophets', (request) => {
+    const parsed = z
+      .object({
+        offset: z.coerce.number().int().min(0).max(1_000_000).default(0),
+        limit: z.coerce.number().int().min(1).max(100).default(50),
+        query: z.string().trim().max(100).default(''),
+      })
+      .strict()
+      .safeParse(request.query);
+    if (!parsed.success)
+      throw new CapsuleError(400, 'Choose a valid Prophet page or search.');
+    const wall = store.publicProphets(
+      slug(request.params),
+      parsed.data.offset,
+      parsed.data.limit,
+      parsed.data.query,
+    );
+    if (!wall) throw new CapsuleError(404, 'Capsule not found.');
+    return wall;
+  });
   app.get('/api/public/capsules/:slug', (request) => {
     const capsule = store.publicView(slug(request.params));
     if (!capsule) throw new CapsuleError(404, 'Capsule not found.');

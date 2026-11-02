@@ -110,6 +110,27 @@ describe('Trigger scheduler and durable state', () => {
       log.latest().filter((e) => e.type === 'capsule.opening'),
     ).toHaveLength(1);
   });
+  it('opens at the original deadline despite repeated Open now requests', async () => {
+    const { fake, store, scheduler, log } = await fixture();
+    fake.live = true;
+    const c = store.create(
+      { title: 'Click once', triggerType: 'manual' },
+      owner,
+    );
+    await scheduler.sync(true);
+    const first = scheduler.action(c.id, 'open');
+    for (let i = 0; i < 4; i++) {
+      await vi.advanceTimersByTimeAsync(1000);
+      expect(scheduler.action(c.id, 'open').openingDueAt).toBe(
+        first.openingDueAt,
+      );
+    }
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(store.get(c.id)?.status).toBe('opening');
+    expect(
+      log.latest().filter((e) => e.type === 'capsule.opening'),
+    ).toHaveLength(1);
+  });
   it('verifies live status again at the deadline even when an offline event is missing', async () => {
     const { fake, store, scheduler } = await fixture();
     fake.live = true;

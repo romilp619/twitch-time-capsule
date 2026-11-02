@@ -192,6 +192,70 @@ describe('Ceremony API and overlay isolation', () => {
     const events = await app.inject({ url: '/api/events', headers });
     expect(events.body).not.toContain('PRIVATE_TEXT');
   });
+  it('approves pending messages across pages only in the active capsule and protects bulk moderation', async () => {
+    const { app, db, store, capsule, headers, post, queue } = await fixture();
+    expect(
+      (await app.inject({ method: 'POST', url: '/api/ceremony/approve-all' }))
+        .statusCode,
+    ).toBe(401);
+    expect(
+      (
+        await app.inject({
+          method: 'POST',
+          url: '/api/ceremony/approve-all',
+          headers: { ...headers, origin: 'https://evil.invalid' },
+        })
+      ).statusCode,
+    ).toBe(403);
+    await post('/api/ceremony/seals/1', { status: 'rejected' });
+    await post('/api/ceremony/seals/2', { status: 'approved' });
+    await queue();
+    await post('/api/ceremony/reveal');
+    const insert = db.prepare(
+      'INSERT INTO seals (capsule_id, number, user_id, user_login, display_name, text, created_at, chat_message_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+    );
+    for (let i = 4; i <= 63; i++)
+      insert.run(
+        capsule.id,
+        i,
+        'v' + i,
+        'viewer' + i,
+        'Viewer',
+        'Private bulk prediction',
+        new Date().toISOString(),
+        'bulk-' + i,
+      );
+    const other = store.create(
+      { title: 'Other capsule', triggerType: 'manual' },
+      { id: '9', login: 'other', displayName: 'Other' },
+    );
+    const unrelated = store.acceptSeal({
+      broadcasterId: '9',
+      userId: 'other-viewer',
+      userLogin: 'other-viewer',
+      displayName: 'Other viewer',
+      text: 'Leave pending',
+      chatMessageId: 'other',
+    })!;
+    const result = await post('/api/ceremony/approve-all');
+    expect(result.statusCode).toBe(200);
+    expect(result.json()).toMatchObject({
+      approved: 61,
+      ceremony: {
+        counts: { pending: 0, approved: 61, rejected: 1, revealed: 1 },
+      },
+    });
+    expect(
+      db
+        .prepare('SELECT status FROM seals WHERE id=? AND capsule_id=?')
+        .get(unrelated.id, other.id),
+    ).toEqual({ status: 'pending' });
+    expect((await post('/api/ceremony/approve-all')).json().approved).toBe(0);
+    const events = (await app.inject({ url: '/api/events', headers })).body;
+    expect(events).not.toContain('Private bulk prediction');
+    await post('/api/ceremony/end');
+    expect((await post('/api/ceremony/approve-all')).statusCode).toBe(409);
+  });
   it('validates queue pages, moderation status, settings, and auto-reveal bodies', async () => {
     const { app, headers, post } = await fixture();
     for (const query of ['status=invalid', 'offset=-1', 'limit=101'])

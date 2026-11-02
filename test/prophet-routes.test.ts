@@ -106,7 +106,7 @@ describe('Prophet API integration', () => {
     expect(f.fake.vipChanges).toEqual([]);
     expect(f.fake.sentMessages).toEqual([]);
   });
-  it('only marks revealed messages, returns private status, and leaves public messages sealed', async () => {
+  it('publishes only revealed winners after the ceremony and preserves other messages', async () => {
     const f = await fixture();
     for (const id of [2, 3, 999])
       expect(
@@ -140,9 +140,22 @@ describe('Prophet API integration', () => {
       await f.app.inject('/api/public/capsules/' + f.capsule.slug)
     ).json();
     expect(publicPage.prophets).toEqual([
-      { displayName: 'Viewer 1', predictions: 1 },
+      {
+        displayName: 'Viewer 1',
+        predictions: 1,
+        messages: [{ number: 1, text: 'PRIVATE_TEXT_1' }],
+      },
     ]);
-    expect(JSON.stringify(publicPage)).not.toContain('PRIVATE_TEXT');
+    expect(JSON.stringify(publicPage)).toContain('PRIVATE_TEXT_1');
+    for (const privateValue of [
+      'PRIVATE_TEXT_2',
+      'PRIVATE_TEXT_3',
+      'userId',
+      'user_id',
+      'vipStatus',
+      'chat_message_id',
+    ])
+      expect(JSON.stringify(publicPage)).not.toContain(privateValue);
     const log = (await f.app.inject({ url: '/api/events', headers: f.headers }))
       .body;
     expect(log).not.toContain('PRIVATE_TEXT');

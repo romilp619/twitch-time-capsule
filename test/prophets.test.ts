@@ -170,10 +170,14 @@ describe('Prophets and VIP ownership', () => {
     expect(f.store.publicView(f.capsule.slug)?.prophets).toEqual([]);
     f.ceremony.end();
     expect(f.store.publicView(f.capsule.slug)?.prophets).toEqual([
-      { displayName: 'Viewer 0', predictions: 1 },
+      {
+        displayName: 'Viewer 0',
+        predictions: 1,
+        messages: [{ number: 1, text: 'PRIVATE_PREDICTION_0' }],
+      },
     ]);
-    expect(JSON.stringify(f.store.publicView(f.capsule.slug))).not.toContain(
-      'PRIVATE_PREDICTION',
+    expect(JSON.stringify(f.store.publicView(f.capsule.slug))).toContain(
+      'PRIVATE_PREDICTION_0',
     );
     expect(JSON.stringify(f.store.publicView(f.capsule.slug))).not.toContain(
       '"userId"',

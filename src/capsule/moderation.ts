@@ -8,10 +8,22 @@ export function parseSealCommand(message: string): string | null {
 }
 export function validateSealText(text: string, maxLength: number): void {
   const length = Array.from(text).length;
-  if (length < 3 || length > maxLength)
+  if (length === 0)
     throw new CapsuleError(
       400,
-      'Use 3 to ' + maxLength + ' characters after !seal.',
+      'Add your prediction after !seal. Example: !seal We will win the next round.',
+    );
+  if (length < 3)
+    throw new CapsuleError(
+      400,
+      'Your prediction is too short. Write at least 3 characters after !seal.',
+    );
+  if (length > maxLength)
+    throw new CapsuleError(
+      400,
+      'Your prediction is too long. Use at most ' +
+        maxLength +
+        ' characters after !seal.',
     );
   if (
     Array.from(text).some((character) => {

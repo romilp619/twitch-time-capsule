@@ -42,6 +42,7 @@ async function api(path, method = 'GET', body) {
   return data;
 }
 function render(state) {
+  globalThis.updateWorkspace?.({ connection: state });
   renderEventSub(state.eventsub);
   currentState = state;
   globalThis.capsuleConnectionState = state;
@@ -85,8 +86,24 @@ function render(state) {
       item.textContent = scope;
       list.append(item);
     }
-    document.querySelector('[data-connect="' + role + '"]').disabled =
-      !state.configured || busy;
+    const connectLink = document.querySelector('[data-connect="' + role + '"]');
+    const connected = !isFallback && account.status === 'connected';
+    document.getElementById(role + '-connected').hidden = !connected;
+    connectLink.textContent = connected
+      ? 'Reconnect ↗'
+      : 'Connect ' + role + ' account ↗';
+    connectLink.setAttribute(
+      'aria-label',
+      (connected ? 'Reconnect ' : 'Connect ') + role + ' account',
+    );
+    connectLink.className = connected
+      ? 'quiet action-link reconnect-link'
+      : (role === 'streamer' ? 'primary' : 'secondary') + ' action-link';
+    const unavailable = !state.configured || busy;
+    connectLink.setAttribute('aria-disabled', String(unavailable));
+    if (unavailable) connectLink.removeAttribute('href');
+    else
+      connectLink.href = '/auth/connect?' + new URLSearchParams({ role, key });
     document.querySelector('[data-disconnect="' + role + '"]').hidden =
       !account.userId;
     document.querySelector('[data-disconnect="' + role + '"]').disabled = busy;
@@ -126,15 +143,6 @@ async function act(work) {
     if (currentState) render(currentState);
   }
 }
-for (const button of document.querySelectorAll('[data-connect]'))
-  button.addEventListener('click', () => {
-    void act(async () => {
-      const result = await api('/api/auth/start', 'POST', {
-        role: button.dataset.connect,
-      });
-      location.assign(result.url);
-    });
-  });
 for (const button of document.querySelectorAll('[data-disconnect]'))
   button.addEventListener('click', () => {
     void act(async () => {

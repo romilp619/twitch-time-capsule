@@ -405,13 +405,73 @@ export class CapsuleStore {
       .run(hidden ? 1 : 0, id);
     this.changed();
   }
+  publicProphets(slug: string, offset = 0, limit = 50, query = '') {
+    const capsule = this.bySlug(slug);
+    if (!capsule) return null;
+    const where = ` FROM prophets p JOIN seals s ON s.id=p.seal_id
+      WHERE p.capsule_id=? AND s.status='revealed' AND s.came_true=1
+      AND instr(lower(s.display_name), lower(?)) > 0`;
+    const total = capsule.openedAt
+      ? (
+          this.db
+            .prepare('SELECT COUNT(DISTINCT s.user_id) AS total' + where)
+            .get(capsule.id, query) as { total: number }
+        ).total
+      : 0;
+    const rows = total
+      ? (this.db
+          .prepare(
+            `SELECT s.user_id, MIN(s.display_name) AS display_name, COUNT(*) AS predictions` +
+              where +
+              ' GROUP BY s.user_id ORDER BY MIN(p.id) LIMIT ? OFFSET ?',
+          )
+          .all(capsule.id, query, limit, offset) as Array<{
+          user_id: string;
+          display_name: string;
+          predictions: number;
+        }>)
+      : [];
+    // Fetch only the selected page's revealed winning predictions in one query.
+    const messages = new Map<string, Array<{ number: number; text: string }>>();
+    if (rows.length) {
+      const winners = this.db
+        .prepare(
+          'SELECT s.user_id, s.number, s.text' +
+            where +
+            ' AND s.user_id IN (' +
+            rows.map(() => '?').join(',') +
+            ') ORDER BY s.number',
+        )
+        .all(capsule.id, query, ...rows.map((row) => row.user_id)) as Array<{
+        user_id: string;
+        number: number;
+        text: string;
+      }>;
+      for (const winner of winners) {
+        const entries = messages.get(winner.user_id) ?? [];
+        entries.push({ number: winner.number, text: winner.text });
+        messages.set(winner.user_id, entries);
+      }
+    }
+    return {
+      total,
+      offset,
+      limit,
+      prophets: rows.map((row) => ({
+        displayName: row.display_name,
+        predictions: row.predictions,
+        messages: messages.get(row.user_id) ?? [],
+      })),
+    };
+  }
   publicView(slug: string) {
     const row = this.db
       .prepare(summarySql + ' WHERE c.slug = ? GROUP BY c.id')
       .get(slug) as CapsuleRow | undefined;
     if (!row) return null;
     const capsule = this.capsule(row);
-    // Explicit allow-list: never spread rows or return viewer identities/texts.
+    const wall = this.publicProphets(slug)!;
+    // Explicit allow-list: only revealed winning text is public; private IDs and reward details stay excluded.
     return {
       slug: capsule.slug,
       title: capsule.title,
@@ -425,23 +485,8 @@ export class CapsuleStore {
       condition: conditionText(capsule, this.now()),
       createdAt: capsule.createdAt,
       sealedCount: capsule.sealedCount,
-      prophets: capsule.openedAt
-        ? (
-            this.db
-              .prepare(
-                `SELECT s.display_name, COUNT(*) AS predictions
-        FROM prophets p JOIN seals s ON s.id=p.seal_id WHERE p.capsule_id=?
-        AND s.status='revealed' AND s.came_true=1 GROUP BY s.user_id ORDER BY MIN(p.id) LIMIT 100`,
-              )
-              .all(capsule.id) as Array<{
-              display_name: string;
-              predictions: number;
-            }>
-          ).map((row) => ({
-            displayName: row.display_name,
-            predictions: row.predictions,
-          }))
-        : [],
+      prophets: wall.prophets,
+      prophetTotal: wall.total,
       maxLength: capsule.settings.max_length,
       maxSealsPerUser: capsule.settings.max_seals_per_user,
     };

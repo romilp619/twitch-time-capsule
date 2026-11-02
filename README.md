@@ -2,6 +2,50 @@
 
 Time Capsule lets Twitch viewers seal free-text predictions and messages, then reveal them together during a future stream. A streamer can choose a date, a follower goal, a first stream in a category, or a manual opening. Moderators approve reveals; predictions that come true earn a place on the Wall of Prophets, with optional temporary VIP. The OBS overlay stays empty and transparent outside a ceremony. No paid AI or external AI service is used at runtime.
 
+**Why:** Twitch Predictions last at most 30 minutes and only cover the current stream. Time Capsule lets chat seal its own words for days or weeks, then opens them live at the moment that matters.
+
+## Screenshots
+
+| | |
+|---|---|
+| **1. Connect your Twitch accounts** (streamer + optional bot)<br>![Connect accounts](docs/screenshots/01-connect-accounts.png) | **2. Create a capsule** and choose when it opens<br>![Create capsule](docs/screenshots/02-create-capsule.png) |
+| **3. Viewers type `!seal` in chat.** The bot hides the message and replies with a number<br>![Seal in chat](docs/screenshots/03-viewers-seal-in-chat.png) | **4. The dashboard counts sealed messages.** The words stay secret<br>![Sealed count](docs/screenshots/04-sealed-count.png) |
+| **5. Add the overlay to OBS** as a Browser Source (transparent until it opens)<br>![OBS setup](docs/screenshots/05-obs-overlay-setup.png) | **6. The capsule opens.** Mods approve messages first<br>![Mod approves](docs/screenshots/06-mod-approves.png) |
+| **7. Reveal messages one by one** on stream<br>![Reveal](docs/screenshots/07-reveal-on-stream.png) | **8. Mark a prediction as "Came true".** That viewer becomes a Prophet (optional VIP)<br>![Prophet](docs/screenshots/08-prophet-came-true.png) |
+| **9. Live on Twitch** (Stream Manager preview with the overlay)<br>![Live on Twitch](docs/screenshots/09-live-on-twitch.png) | **10. Public capsule page** with the Wall of Prophets<br>![Wall of Prophets](docs/screenshots/10-public-wall-of-prophets.png) |
+
+## Easy setup
+
+### Option A: try it in 1 minute (no Twitch account needed)
+
+Needs [Node.js](https://nodejs.org) 20.19 or newer.
+
+```sh
+npm ci
+npm run demo
+```
+
+Open <http://localhost:3000/demo> and click **Play full story**. It runs the whole flow with fake viewers: sealing, opening, reveal and a Prophet.
+
+### Option B: use it on your real Twitch channel
+
+1. **Register a Twitch app** at <https://dev.twitch.tv/console/apps>: category **Chat Bot**, client type **Confidential**, redirect URL `http://localhost:3000/auth/callback`.
+2. **Copy `.env.example` to `.env`** and fill in `TWITCH_CLIENT_ID` and `TWITCH_CLIENT_SECRET`.
+3. **Start it:** `npm ci` then `npm run dev`. Open the **Dashboard** link printed in the terminal (keep it private).
+4. **Connect your streamer account** (and optionally a bot account). For a separate bot, type `/mod yourbotname` in your Twitch chat.
+5. **Add the overlay to OBS:** Dashboard → OBS overlay → Copy OBS URL → in OBS add a **Browser** source, paste the URL, size **1920 × 1080**.
+6. **Create a capsule** in the dashboard. Viewers type `!seal your prediction` in chat. When it opens, approve and reveal messages from the dashboard.
+
+Run the tests with `npm test`.
+
+## How I used OpenAI Codex
+
+The whole app was built in one Codex thread, phase by phase, from the specification in [CODEX_PROMPT.md](./CODEX_PROMPT.md): project skeleton, Twitch OAuth, EventSub WebSocket and chat, capsules and sealing, opening triggers, the ceremony and OBS overlay, Prophets and VIP, and the account-free demo mode. Each phase was tested and committed before the next one (see the commit history), and Codex wrote the automated test suite.
+
+---
+
+The sections below are the full technical documentation.
+
 ## Build status
 
 **Phase 8: account-free demo mode.** `npm run demo` starts an isolated fake Twitch instance with 20 sample viewers, opening controls, the real dashboard and transparent overlay, and an automatic 90-second story. It never reads your real `.env`, tokens, keys, or database and never sends requests to Twitch. Phases 1–7 remain available in normal mode. The original specification is in [CODEX_PROMPT.md](./CODEX_PROMPT.md).
@@ -165,7 +209,7 @@ In the dashboard's Capsules section, choose a title and an opening condition: ma
 
 Limits default to three seals per viewer, 280 Unicode code points per message, and a ten-second cooldown. You can set a per-user limit from 1 to 100 and a maximum length from 3 to 280. VIP reward preferences and days are stored for Phase 7; they do not grant VIP yet. Only one capsule may be sealing at a time, enforced by SQLite and the create route. Locking stops new seals and frees the active slot; archiving preserves all stored seals.
 
-Each capsule records its broadcaster ID, login, and display name. New seals must come from that channel. The private list can show capsules from a previously connected channel so you can lock/archive them before changing channels. !capsule describes the active or latest non-archived capsule for the current channel, including count, opening condition/countdown, and public URL. Moderator/broadcaster badges authorize !capsule lock, !capsule open, and !capsule status; VIP alone does not. Own-sender commands remain ignored in single-account mode, so use dashboard controls or another moderator account.
+Each capsule records its broadcaster ID, login, and display name. New seals must come from that channel. The private list can show capsules from a previously connected channel so you can lock/archive them before changing channels. !capsule describes the active or latest non-archived capsule for the current channel, including count and whether sealing is open or closed. Future opening conditions/countdowns are shown only before opening. A public URL is included only when BASE_URL uses a domain name; localhost, local hostnames, and literal IP addresses are omitted from chat. Local dashboard links still work on the streamer’s computer. Moderator/broadcaster badges authorize !capsule lock, !capsule open, and !capsule status; VIP alone does not. Own-sender commands remain ignored in single-account mode, so use dashboard controls or another moderator account.
 
 ### What happens to !seal
 
@@ -179,7 +223,7 @@ The blocked-word file is data/blocked-words.txt (gitignored, created on startup)
 
 ### Public capsule pages
 
-View public page opens /c/:slug. The page and /api/public/capsules/:slug expose only whitelisted capsule/channel metadata, configured limits, condition, and sealed count. They never expose viewer IDs, logins, display names, hidden flags, or sealed texts. The count refreshes every five seconds; date capsules show a live countdown. Public pages are unauthenticated but the server still binds to 127.0.0.1, so sharing outside this computer needs a separately configured hosting/tunnel arrangement.
+View public page opens /c/:slug. The page and /api/public/capsules/:slug expose only whitelisted capsule/channel metadata, configured limits, condition, and sealed count. Before a ceremony ends, they never expose viewer identities or message text. After it ends, the Wall of Prophets includes display names, correct-prediction counts, and only the revealed predictions marked Came true. Viewer IDs, logins, hidden flags, and other message text remain private. The count refreshes every five seconds; date capsules show a live countdown. Public pages are unauthenticated but the server still binds to 127.0.0.1, so sharing outside this computer needs a separately configured hosting/tunnel arrangement.
 
 Twitch messages may briefly be seen before deletion; broadcaster/moderator messages cannot be hidden at all. The dashboard shows how many stored messages are not hidden. This is chat message deletion rather than encryption or a guarantee that nobody saw the original message. The pre-opening public page stays private with respect to contents.
 
@@ -210,7 +254,7 @@ A waiting capsule moves from sealing/locked to **ready** once its condition is m
 
 When a condition is reached during a live stream, opening waits 5 seconds. A capsule made ready offline stays ready until the next live stream, then waits OFFLINE_OPEN_DELAY_SECONDS (60 by default). A lost/offline/unknown live state cancels the countdown. The scheduler also checks Helix live status at the deadline so a missed offline event cannot open a capsule while offline.
 
-**Postpone 10 min** keeps the original condition and saves a ten-minute opening delay. Before the condition is reached, sealing can continue. Once ready, the capsule stays ready during the postponement. Restarting the app preserves the postponement and all seals, verifies current Twitch facts, and starts a fresh live settling delay where necessary. **Open now** overrides both the condition and postponement, waits five seconds if live, or waits for the next live stream if offline. It always respects the live requirement.
+**Postpone 10 min** keeps the original condition and saves a ten-minute opening delay. Before the condition is reached, sealing can continue. Once ready, the capsule stays ready during the postponement. Restarting the app preserves the postponement and all seals, verifies current Twitch facts, and starts a fresh live settling delay where necessary. **Open now** overrides both the condition and postponement, waits five seconds if live, or waits for the next live stream if offline. It always respects the live requirement. Click once: repeated Open now requests preserve the earlier deadline rather than restarting the countdown. The dashboard disables duplicate requests during the final five seconds and shows when an offline opening is queued automatically.
 
 Opening controls are shown for sealing, locked, and ready capsules. Archive can cancel a ready capsule. Once opening starts, use the Phase 6 ceremony controls to approve, reveal, and end. Other ready capsules wait their turn. This phase never reveals message text.
 
@@ -268,7 +312,7 @@ The private queue is available while a ceremony is active. Filter by pending, ap
 - **End ceremony** stops auto-reveal, clears the overlay, and preserves all messages and decisions.
 - **Play 10-second preview** uses sample messages in memory only. It does not touch real seals, approvals, Twitch chat, or capsule status. End an active real ceremony before previewing.
 
-Public capsule pages remain metadata and counts only, including after a ceremony ends. Revealed text is available through the private dashboard and keyed OBS view. Public message publication remains disabled. Phase 7 adds Prophet stamps, VIP actions, and a name-only public wall.
+Public capsule pages contain metadata and counts while sealed. After a ceremony ends, the Wall of Prophets shows display names and revealed predictions marked Came true. Other revealed messages, unrevealed messages, private viewer IDs, and reward details remain excluded.
 
 ### Phase 6 acceptance check
 
@@ -295,7 +339,7 @@ Migration 5 adds reward/announcement status and a separate ownership ledger. Onl
 
 An interrupted grant/removal is recorded as uncertain rather than guessed successful. A grant retry checks Twitch first and preserves any existing role. An uncertain removal pauses automatic removal and needs review in Twitch. The ledger cannot distinguish a manually removed-and-regranted role from the original app grant between checks; manage such changes in Twitch with the recorded expiry in mind. Local database and token backups must remain private.
 
-After **End ceremony**, the public page shows up to 100 Prophet display names, with each viewer's count of correct predictions. Pending/rejected messages, seal texts, user IDs, role errors, and VIP expiry details remain private. This implements the public Wall of Prophets without enabling public message publication.
+After **End ceremony**, the public page shows Prophet display names, correct-prediction counts, and the corresponding revealed winning messages. Viewer names have search and 50-viewer pagination with no 100-person cap. Pending, rejected, and unmarked messages, user IDs, role errors, and VIP expiry details remain private.
 
 ### Phase 7 acceptance check
 
@@ -304,7 +348,7 @@ After **End ceremony**, the public page shows up to 100 Prophet display names, w
 3. For the real flow, create a manual capsule with VIP **off** first. Have a separate viewer send `!seal I predict we win the next round` in Twitch chat. Go live, choose **Open now**, approve the message, then **Reveal next**.
 4. In **Prophets**, click **Came true** for that revealed message. Expect the overlay stamp/banner and the Prophet chat announcement. Reload the dashboard: the recognition remains. A pending or rejected seal cannot be marked true.
 5. For VIP, create a new capsule with **Reward Prophets with VIP** enabled before collecting its seals. Repeat the approved reveal and Came true flow. Expect either **VIP granted by this app** with an expiry, or a clear Twitch error. Your channel may require Build a Community and a free VIP slot. Existing VIPs are preserved. Use **Retry VIP** after resolving a grant error.
-6. End the ceremony. The overlay fades to empty. Open **View public page**: the Wall of Prophets shows display names without message contents or private role details.
+6. End the ceremony. The overlay fades to empty. Open **View public page**: the Wall of Prophets shows display names with their revealed winning messages, while other messages and private role details stay hidden.
 7. Run `npm test`, `npm run typecheck`, `npm run lint`, and `npm run build`. Fake Twitch tests cover grant/removal errors, permission isolation, concurrent clicks, existing roles, overlapping awards, restarts, startup/hourly expiry, retry behavior, public privacy, and literal-text rendering. Live Twitch grants are left for your acceptance test.
 
 Private routes: GET /api/prophets (50-row pages, limit capped at 100), POST /api/prophets/seals/:id/came-true, POST /api/prophets/seals/:id/retry-vip, POST /api/prophets/seals/:id/retry-chat, and POST /api/prophets/expiry. All require the admin key; browser mutations also check Origin. The overlay key cannot use these routes. `src/capsule/prophets.ts` owns persistence and expiry; ceremony state and rendering remain separate.
@@ -327,7 +371,7 @@ The page embeds a 1920×1080 OBS overlay above an original, fictional coastal dr
 - **Go live**, **Simulate the category change to Grand Theft Auto VI**, and **Reach 1,000 followers** update the synthetic facts. Category comparison still uses IDs; the demo ID `900000001` is deliberately fictional.
 - **Approve pending messages**, **Reveal next**, **Mark latest Came true**, and **End ceremony** use the normal ceremony/reward services. You can also explore those controls in the embedded dashboard.
 
-The demo header, dashboard banner, EventSub label, gameplay scene, fake VIP count, and simulated chat all identify the fake environment. Demo-only routes exist only on the demo server. `/api/demo` exposes only fictional state and demo links; mutations require its separate demo key and the same-origin check. The real dashboard retains its frame restriction. Only the demo dashboard permits same-origin embedding. The public wall still shows display names only, without publishing message text.
+The demo header, dashboard banner, EventSub label, gameplay scene, fake VIP count, and simulated chat all identify the fake environment. Demo-only routes exist only on the demo server. `/api/demo` exposes only fictional state and demo links; mutations require its separate demo key and the same-origin check. The real dashboard retains its frame restriction. Only the demo dashboard permits same-origin embedding. After the ceremony, the public wall shows display names and revealed winning messages; other predictions stay private.
 
 ### Phase 8 acceptance check
 
@@ -397,3 +441,11 @@ Each capsule card has **Delete**, and the list has **Delete all**. Both ask for 
 Deletion does not send chat messages or immediately change Twitch roles. Independent VIP ownership and expiry records are retained so previously granted temporary VIP rewards can still expire. Deletion waits for in-flight reward operations. Capsule and seal IDs are never reused after deletion, protecting new records from stale dashboard requests. Accounts, settings, and activity logs are retained.
 
 The Prophets section also has **Delete** for each revealed prediction and **Delete all** across every page. These remove the revealed message and its Prophet record; the capsule and any unrevealed messages remain. The same confirmation, active-ceremony protection, reward-operation queue, and VIP expiry retention apply.
+
+### Large Prophet collections and stream showcase
+
+The Prophets dashboard searches viewer names, prediction text, and capsule titles. Filter by Came true or Not marked true and browse 50 predictions per page. Correctness remains a streamer decision; search and playback never automatically mark predictions true.
+
+After ending the ceremony, choose a completed capsule in **Prophets → Stream Prophet showcase**. Start plays every already-revealed winning prediction in seal order on the existing private OBS overlay, with only the newest three cards visible. Cards scroll upward automatically as each new winner arrives; reduced-motion preferences disable the movement. Choose 3–60 seconds per prediction; pause/resume, step to the next winner, or stop to clear the overlay. Progress is saved, and a restarted app restores playback paused. Showcase playback does not repeat VIP grants or Twitch announcements.
+
+The public Wall of Prophets has name search, a total count, and 50-name pages with no 100-person truncation. Each viewer appears once with their correct-prediction count. Public responses include names, counts, and only revealed winning prediction texts after the ceremony. Viewer IDs, unrevealed/rejected/unmarked messages, and reward details stay private. Message reads are batched for the selected viewer page. Database indexes support the winner sequence and paged lists. Regression tests exercise 1,205 winning predictions, including the last public page and complete showcase traversal; this is synthetic storage/playback validation, not a live Twitch throughput benchmark.

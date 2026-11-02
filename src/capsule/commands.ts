@@ -1,3 +1,4 @@
+import { isIP } from 'node:net';
 import type { ChatEvent } from '../twitch/chat.js';
 import type { EventLog } from '../db/events.js';
 import { safeMessage } from '../twitch/http.js';
@@ -56,25 +57,66 @@ export class CapsuleCommands {
       null
     );
   }
+  private publicLink(capsule: Capsule): string {
+    const url = new URL('/c/' + capsule.slug, this.baseUrl);
+    const host = url.hostname
+      .replace(/^\[|\]$/g, '')
+      .replace(/\.$/, '')
+      .toLowerCase();
+    // Chat viewers cannot use the streamer's localhost/LAN address. Only
+    // advertise configured domain names; literal IP addresses stay local.
+    if (
+      isIP(host) ||
+      !host.includes('.') ||
+      ['.localhost', '.local', '.lan', '.internal', '.test', '.invalid'].some(
+        (suffix) => host.endsWith(suffix),
+      )
+    )
+      return '';
+    return url.toString();
+  }
+  private closedMessage(capsule: Capsule): string {
+    switch (capsule.status) {
+      case 'opening':
+        return 'This capsule is already opening; sealing is closed. Wait for the next capsule.';
+      case 'opened':
+        return 'This capsule has already opened; sealing is closed. Wait for the next capsule.';
+      default:
+        return 'Sealing is closed for this capsule. Wait for the next capsule.';
+    }
+  }
   describe(broadcasterId: string): string {
     const capsule = this.latest(broadcasterId);
     if (!capsule) return 'No capsule is open for sealing right now.';
-    const url = new URL('/c/' + capsule.slug, this.baseUrl).toString();
+    const url = this.publicLink(capsule);
     const title = clipped(capsule.title, 60);
-    const detail = clipped(
-      conditionText(capsule, this.now()),
-      Math.max(30, 420 - Array.from(url + title).length),
-    );
-    return (
+    const prefix =
       title +
       ' | ' +
       capsule.status +
       ' | ' +
       capsule.sealedCount +
-      ' sealed. Opens: ' +
-      detail +
-      '. ' +
-      url
+      ' sealed. ';
+    const detail =
+      capsule.status === 'sealing'
+        ? 'Accepting seals: !seal your message. Opens: ' +
+          conditionText(capsule, this.now()) +
+          '.'
+        : capsule.status === 'opening'
+          ? 'Opening now; sealing is closed.' +
+            (capsule.sealedCount === 0 ? ' No messages were collected.' : '')
+          : capsule.status === 'opened'
+            ? 'Ceremony finished; sealing is closed.'
+            : capsule.status === 'ready'
+              ? 'Sealing is closed. Waiting to open during a live stream.'
+              : 'Sealing is locked. Opens: ' +
+                conditionText(capsule, this.now()) +
+                '.';
+    const suffix = url ? ' ' + url : '';
+    return (
+      prefix +
+      clipped(detail, 500 - Array.from(prefix + suffix).length) +
+      suffix
     );
   }
   private reject(
@@ -113,10 +155,18 @@ export class CapsuleCommands {
           (value) => this.blocked.contains(value),
         );
       } catch (error) {
-        const message =
+        let message =
           error instanceof CapsuleError
             ? error.message
             : 'The seal could not be stored. Please try again.';
+        if (
+          error instanceof CapsuleError &&
+          error.status === 409 &&
+          message === 'No capsule is open for sealing right now.'
+        ) {
+          const capsule = this.latest(event.broadcaster_user_id);
+          if (capsule) message = this.closedMessage(capsule);
+        }
         if (!(error instanceof CapsuleError) || error.status >= 500)
           this.warn(message);
         this.log.write('seal.rejected', {

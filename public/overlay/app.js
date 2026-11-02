@@ -49,7 +49,7 @@ function renderOverlay(packet) {
       : settings.cardScale === 1.15
         ? 'scale-large'
         : 'scale-medium');
-  stage.className = classes;
+  stage.className = classes + (packet.showcase ? ' showcase-scroll' : '');
   const identity = String(packet.capsuleId) + ':' + packet.startedAt;
   if (packet.stage === 'opening') {
     if (overlayMode === identity + ':opening') return;
@@ -117,11 +117,20 @@ function renderOverlay(packet) {
   banner.hidden = !packet.prophet;
   const container = stage.querySelector('.cards');
   const cards = Array.isArray(packet.cards) ? packet.cards.slice(-3) : [];
+  const scrollMotion =
+    packet.showcase &&
+    !globalThis.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+  const previousTops = new Map();
+  if (scrollMotion) {
+    for (const [id, element] of overlayCards)
+      if (typeof element.getBoundingClientRect === 'function')
+        previousTops.set(id, element.getBoundingClientRect().top);
+  }
   const wanted = new Set(cards.map((card) => card.id));
   for (const [id, element] of overlayCards) {
     if (!wanted.has(id)) {
       element.classList.add('leaving');
-      setTimeout(() => element.remove(), 400);
+      setTimeout(() => element.remove(), packet.showcase ? 650 : 400);
       overlayCards.delete(id);
     }
   }
@@ -156,6 +165,22 @@ function renderOverlay(packet) {
     }
     container.append(element);
     overlayCards.set(card.id, element);
+  }
+  if (scrollMotion) {
+    for (const [id, element] of overlayCards) {
+      const previousTop = previousTops.get(id);
+      if (previousTop === undefined || typeof element.animate !== 'function')
+        continue;
+      const distance = previousTop - element.getBoundingClientRect().top;
+      if (Math.abs(distance) > 1)
+        element.animate(
+          [
+            { transform: 'translateY(' + distance + 'px)' },
+            { transform: 'translateY(0)' },
+          ],
+          { duration: 650, easing: 'cubic-bezier(0.22, 1, 0.36, 1)' },
+        );
+    }
   }
 }
 function connectOverlay() {

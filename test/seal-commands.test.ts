@@ -24,7 +24,7 @@ afterEach(async () => {
   vi.useRealTimers();
 });
 const owner = { id: '1', login: 'streamer', displayName: 'Streamer' };
-function fixture() {
+function fixture(baseUrl = 'http://localhost:3000') {
   const project = twitchProject();
   cleanup.push(project.cleanup);
   const db = openDatabase(':memory:');
@@ -53,7 +53,7 @@ function fixture() {
     sender,
     remove,
     log,
-    'http://localhost:3000',
+    baseUrl,
     () => now,
   );
   cleanup.push(() => commands.close());
@@ -178,7 +178,60 @@ describe('Sealing workflow', () => {
     );
     expect(store.get(capsule.id)?.status).toBe('locked');
     expect(commands.describe('1')).toContain('locked | 1 sealed');
-    expect(commands.describe('1')).toContain('/c/' + capsule.slug);
+    expect(commands.describe('1')).toContain('Sealing is locked');
+    expect(commands.describe('1')).not.toContain('http');
+  });
+  it.each([
+    'http://localhost:3000',
+    'http://localhost.:3000',
+    'http://127.0.0.1:3000',
+    'http://[::1]:3000',
+    'http://0.0.0.0:3000',
+    'http://192.168.1.2:3000',
+    'http://capsule.local:3000',
+    'http://demo.localhost:3000',
+  ])('does not advertise a local-only status link for %s', (baseUrl) => {
+    const { commands } = fixture(baseUrl);
+    const reply = commands.describe('1');
+    expect(reply).toContain('Accepting seals: !seal your message');
+    expect(reply).not.toContain('http');
+    expect(reply).not.toContain('/c/');
+  });
+  it('keeps a public domain link without exceeding Twitch chat length', () => {
+    const { commands, capsule } = fixture('https://capsules.example.com');
+    expect(commands.describe('1')).toContain(
+      'https://capsules.example.com/c/' + capsule.slug,
+    );
+    expect(Array.from(commands.describe('1')).length).toBeLessThanOrEqual(500);
+  });
+  it('explains an empty opening and rejects late seals without deleting chat', async () => {
+    const { commands, store, capsule, sender, remove, db } = fixture();
+    db.prepare("UPDATE capsules SET status = 'opening' WHERE id = ?").run(
+      capsule.id,
+    );
+    const reply = commands.describe('1');
+    expect(reply).toContain(
+      'Opening now; sealing is closed. No messages were collected.',
+    );
+    expect(reply).not.toContain('Opens:');
+    await commands.handle(chatEvent('!seal too late'), '1');
+    await commands.batcher.flush();
+    expect(sender.send).toHaveBeenCalledWith(
+      expect.stringContaining('already opening; sealing is closed'),
+      expect.anything(),
+    );
+    expect(store.get(capsule.id)?.sealedCount).toBe(0);
+    expect(remove).not.toHaveBeenCalled();
+  });
+  it('describes a finished ceremony without promising a future opening', () => {
+    const { commands, capsule, db } = fixture();
+    db.prepare("UPDATE capsules SET status = 'opened' WHERE id = ?").run(
+      capsule.id,
+    );
+    expect(commands.describe('1')).toContain(
+      'Ceremony finished; sealing is closed.',
+    );
+    expect(commands.describe('1')).not.toContain('Opens:');
   });
   it('deduplicates accepted seals using the database even after chat cache loss', async () => {
     const { commands, remove, store, capsule } = fixture();

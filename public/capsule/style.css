@@ -195,3 +195,76 @@ footer {
   background: #18221b;
   overflow-wrap: anywhere;
 }
+
+.wall-search {
+  display: grid;
+  gap: 10px;
+  text-align: left;
+  margin: 24px 0;
+  color: var(--muted, #a3aaa7);
+}
+.wall-search input {
+  padding: 13px;
+  background: #111715;
+  border: 1px solid #4a5149;
+  border-radius: 8px;
+  color: #f0eee7;
+  font: inherit;
+  width: 100%;
+  box-sizing: border-box;
+}
+.wall-pagination {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 24px;
+}
+.wall-pagination button {
+  background: #242b26;
+  border: 1px solid #4a5149;
+  border-radius: 8px;
+  padding: 12px 16px;
+  color: #f0eee7;
+  cursor: pointer;
+  font: inherit;
+}
+.wall-pagination button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.wall-pagination button:focus-visible,
+.wall-search input:focus-visible {
+  outline: 2px solid #dfc17c;
+  outline-offset: 3px;
+}
+
+.wall-prophet {
+  margin: 16px 0;
+  text-align: left;
+  padding: 20px;
+}
+.wall-prophet-heading {
+  margin: 0;
+  line-height: 1.6;
+  font-size: 14px;
+}
+.wall-prediction {
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid #3c503d;
+}
+.wall-prediction-label {
+  color: #9bd8b2;
+  font-size: 10px;
+  letter-spacing: 0.06em;
+}
+.wall-prediction blockquote {
+  margin: 10px 0 0;
+  color: #f1f0e7;
+  font-size: 16px;
+  line-height: 1.7;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}

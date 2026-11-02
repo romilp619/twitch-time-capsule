@@ -3,6 +3,7 @@ let capsuleBusy = false;
 let capsuleConnected = false;
 let openingFacts = null;
 let capsuleList = [];
+const expandedCapsuleActions = new Set();
 let selectedCategory = null;
 let searchTimer;
 let searchVersion = 0;
@@ -40,7 +41,7 @@ function updateCapsuleButton() {
   document.getElementById('capsule-form-note').textContent = !capsuleConnected
     ? 'Connect the streamer account to create a capsule.'
     : active
-      ? 'Lock or archive the current sealing capsule before creating another.'
+      ? 'One capsule is collecting messages. Stop collecting or archive it in More actions to create another.'
       : 'One capsule can accept seals at a time. All openings wait for a live stream.';
 }
 globalThis.setCapsuleConnection = (state) => {
@@ -67,12 +68,13 @@ function capsuleCondition(capsule) {
   return 'Opens on first stream in ' + capsule.triggerValue.category_name;
 }
 function renderCapsules(capsules) {
+  globalThis.updateWorkspace?.({ capsules });
   capsuleList = capsules;
   const list = document.getElementById('capsule-list');
   list.replaceChildren();
   if (openingFacts) {
     const facts = document.createElement('p');
-    facts.className = 'muted';
+    facts.className = 'muted opening-facts';
     facts.textContent =
       'Opening checks: ' +
       (openingFacts.live === true
@@ -95,7 +97,12 @@ function renderCapsules(capsules) {
       list.append(warning);
     }
   }
+  const currentOpening = capsules.find(
+    (capsule) => capsule.status === 'opening',
+  );
   for (const capsule of capsules) {
+    const waitingForCeremony =
+      capsule.status === 'ready' && Boolean(currentOpening);
     const card = document.createElement('article');
     card.className = 'capsule-card';
     const top = document.createElement('div');
@@ -104,15 +111,21 @@ function renderCapsules(capsules) {
     title.textContent = capsule.title;
     const status = document.createElement('span');
     status.className =
-      'badge ' + (capsule.status === 'sealing' ? 'connected' : '');
-    status.textContent = capsule.status.toUpperCase();
+      'badge status-' +
+      capsule.status +
+      (capsule.status === 'sealing' ? ' connected' : '');
+    status.textContent = waitingForCeremony
+      ? 'QUEUED'
+      : capsule.status.toUpperCase();
     top.append(title, status);
     const condition = document.createElement('p');
     condition.className = 'muted';
     condition.textContent = capsuleCondition(capsule);
     const count = document.createElement('p');
     count.className = 'capsule-count';
-    count.textContent = capsule.sealedCount + ' sealed messages';
+    count.textContent =
+      capsule.sealedCount +
+      (capsule.sealedCount === 1 ? ' sealed message' : ' sealed messages');
     const owner = document.createElement('p');
     owner.className = 'metadata';
     owner.textContent =
@@ -144,7 +157,21 @@ function renderCapsules(capsules) {
       }
     });
     actions.append(copy);
+    const more = document.createElement('details');
+    more.className = 'card-more';
+    more.open = expandedCapsuleActions.has(capsule.id);
+    more.addEventListener('toggle', () => {
+      if (more.open) expandedCapsuleActions.add(capsule.id);
+      else expandedCapsuleActions.delete(capsule.id);
+    });
+    const moreLabel = document.createElement('summary');
+    moreLabel.textContent = 'More actions';
+    more.append(moreLabel);
+    const moreActions = document.createElement('div');
+    moreActions.className = 'more-actions';
+    more.append(moreActions);
     for (const action of ['open', 'postpone', 'lock', 'archive']) {
+      if (action === 'open' && waitingForCeremony) continue;
       if (
         ['open', 'postpone'].includes(action) &&
         !['sealing', 'locked', 'ready'].includes(capsule.status)
@@ -160,12 +187,29 @@ function renderCapsules(capsules) {
       button.type = 'button';
       button.className = action === 'open' ? 'primary open-now' : 'secondary';
       button.textContent = {
-        open: 'Open now',
+        open:
+          capsule.status === 'sealing'
+            ? 'Finish collecting & open'
+            : 'Open capsule',
         postpone: 'Postpone 10 min',
-        lock: 'Lock sealing',
+        lock: 'Stop collecting',
         archive: 'Archive',
       }[action];
-      button.disabled = capsuleBusy;
+      const postponed =
+        capsule.postponedUntil &&
+        Date.parse(capsule.postponedUntil) > Date.now();
+      if (action === 'open' && capsule.status === 'ready' && !postponed) {
+        if (!capsule.openingDueAt) {
+          button.textContent = 'Waiting for live stream';
+          button.disabled = true;
+        } else if (Date.parse(capsule.openingDueAt) <= Date.now() + 5000) {
+          button.textContent = 'Opening scheduled';
+          button.disabled = true;
+        } else {
+          button.textContent = 'Open sooner';
+        }
+      }
+      button.disabled ||= capsuleBusy;
       button.addEventListener('click', () => {
         void capsuleAction(async () => {
           const result = await capsuleApi(
@@ -176,8 +220,10 @@ function renderCapsules(capsules) {
           capsuleMessage(
             action === 'open'
               ? result.capsule.openingDueAt
-                ? 'Capsule ready. Opening in 5 seconds while live.'
-                : 'Capsule ready. Waiting for the next live stream.'
+                ? 'Opening automatically at ' +
+                  new Date(result.capsule.openingDueAt).toLocaleTimeString() +
+                  '. No further clicks needed.'
+                : 'Opening queued. Start your Twitch stream; the capsule will open automatically after the settling-in delay. No further clicks needed.'
               : action === 'postpone'
                 ? 'Opening postponed for 10 minutes. Seals and the opening condition are preserved.'
                 : action === 'lock'
@@ -186,7 +232,27 @@ function renderCapsules(capsules) {
           );
         });
       });
-      actions.append(button);
+      if (action === 'open') actions.append(button);
+      else moreActions.append(button);
+    }
+    if (moreActions.children.length) actions.append(more);
+    if (
+      capsule.status === 'opening' ||
+      capsule.status === 'opened' ||
+      waitingForCeremony
+    ) {
+      const next = document.createElement('a');
+      next.className = 'primary action-link';
+      next.href =
+        capsule.status === 'opening' || waitingForCeremony
+          ? '#ceremony-title'
+          : '#prophets-title';
+      next.textContent = waitingForCeremony
+        ? 'Go to current ceremony →'
+        : capsule.status === 'opening'
+          ? 'Go to ceremony →'
+          : 'View Prophets →';
+      actions.append(next);
     }
     const remove = document.createElement('button');
     remove.type = 'button';
@@ -217,23 +283,27 @@ function renderCapsules(capsules) {
     timing.className = 'opening-timing';
     timing.textContent =
       capsule.status === 'opening'
-        ? 'Opening started. Use the ceremony controls below to approve and reveal messages.'
+        ? 'Opening started. Go to Opening ceremony to approve and reveal messages.'
         : capsule.status === 'opened'
           ? 'Ceremony finished. Messages and reveal decisions are preserved.'
           : capsule.status === 'archived'
             ? 'Archived. Existing messages are preserved.'
-            : capsule.postponedUntil &&
-                Date.parse(capsule.postponedUntil) > Date.now()
-              ? 'Postponed until ' +
-                new Date(capsule.postponedUntil).toLocaleString() +
-                '. Opening also requires a live stream.'
-              : capsule.status === 'ready'
-                ? capsule.openingDueAt
-                  ? 'Scheduled to open at ' +
-                    new Date(capsule.openingDueAt).toLocaleTimeString() +
-                    '. Postpone to delay.'
-                  : 'Ready. Waiting for a live stream, then the configured settling-in delay.'
-                : 'Open now overrides the condition. Postpone delays opening by 10 minutes. Both keep the live-stream requirement.';
+            : waitingForCeremony
+              ? 'Waiting for “' +
+                currentOpening.title +
+                '” to finish. Open its ceremony and choose End ceremony to continue.'
+              : capsule.postponedUntil &&
+                  Date.parse(capsule.postponedUntil) > Date.now()
+                ? 'Postponed until ' +
+                  new Date(capsule.postponedUntil).toLocaleString() +
+                  '. Opening also requires a live stream.'
+                : capsule.status === 'ready'
+                  ? capsule.openingDueAt
+                    ? 'Opening automatically at ' +
+                      new Date(capsule.openingDueAt).toLocaleTimeString() +
+                      '. No further clicks needed.'
+                    : 'Opening queued. Start your Twitch stream; opening follows automatically after the settling-in delay. No further clicks needed.'
+                  : 'Collect predictions with !seal your message. When everyone has joined, finish collecting to open on a live stream.';
     card.append(timing);
     if (capsule.visibleCount > 0) {
       const warning = document.createElement('p');

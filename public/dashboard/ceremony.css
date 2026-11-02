@@ -147,3 +147,87 @@
   color-scheme: normal;
   background: transparent;
 }
+
+.prophets-reminder {
+  position: fixed;
+  right: 24px;
+  bottom: 24px;
+  z-index: 50;
+  width: 360px;
+  max-width: calc(100vw - 32px);
+  padding: 22px;
+  border: 1px solid var(--gold);
+  border-radius: 12px;
+  background: var(--panel);
+  color: var(--ink);
+  box-shadow: 0 12px 40px #0008;
+}
+.prophets-reminder strong {
+  display: block;
+  padding-right: 32px;
+  color: var(--gold);
+  font-size: 16px;
+}
+.prophets-reminder p {
+  margin: 12px 0 18px;
+  font-size: 14px;
+  line-height: 1.6;
+}
+.reminder-dismiss {
+  position: absolute;
+  right: 8px;
+  top: 8px;
+  padding: 4px 10px;
+  font-size: 20px;
+}
+.reminder-link {
+  display: inline-block;
+  padding: 12px 16px;
+  border-radius: 7px;
+  text-decoration: none;
+  font-size: 13px;
+}
+
+.showcase-panel {
+  margin: 22px 0;
+  padding: 22px;
+  border: 1px solid var(--edge);
+  border-radius: 12px;
+  background: var(--panel);
+}
+.showcase-panel h3 {
+  margin-top: 0;
+}
+.showcase-fields,
+.prophet-filters {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(150px, 1fr);
+  gap: 16px;
+  margin: 18px 0;
+}
+.showcase-fields label,
+.prophet-filters label {
+  display: grid;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 13px;
+}
+.showcase-fields input,
+.showcase-fields select,
+.prophet-filters input,
+.prophet-filters select {
+  width: 100%;
+  min-width: 0;
+  padding: 11px;
+  border: 1px solid var(--edge);
+  border-radius: 7px;
+  background: var(--bg);
+  color: var(--ink);
+  font: inherit;
+}
+@media (max-width: 600px) {
+  .showcase-fields,
+  .prophet-filters {
+    grid-template-columns: 1fr;
+  }
+}

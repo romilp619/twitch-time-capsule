@@ -19,7 +19,12 @@ import { resolve } from 'node:path';
 import { z } from 'zod';
 import { projectRoot, type AppConfig } from './config.js';
 import { openDatabase } from './db/index.js';
-import { constantEqual, TwitchAuth, roles } from './twitch/auth.js';
+import {
+  constantEqual,
+  TwitchAuth,
+  roles,
+  type AccountRole,
+} from './twitch/auth.js';
 import { TwitchConnection } from './twitch/connection.js';
 import { HelixClient } from './twitch/helix.js';
 import { safeMessage, TwitchError, type TwitchFetch } from './twitch/http.js';
@@ -370,6 +375,11 @@ export function buildServer(
   );
   for (const [url, file, type] of [
     [
+      '/dashboard/workspace.js',
+      'public/dashboard/workspace.js',
+      'text/javascript',
+    ],
+    [
       '/dashboard/prophets.js',
       'public/dashboard/prophets.js',
       'text/javascript',
@@ -458,30 +468,47 @@ export function buildServer(
       return snapshot().connection;
     },
   );
+  function beginAuthorization(role: AccountRole, reply: FastifyReply): string {
+    if (dependencies.extension?.mode === 'demo')
+      throw new CapsuleError(
+        409,
+        'Demo accounts are simulated. Use the demo controls.',
+      );
+    const pending = auth.begin(role);
+    const secure =
+      new URL(config.baseUrl).protocol === 'https:' ? '; Secure' : '';
+    reply.header(
+      'Set-Cookie',
+      pending.cookieName +
+        '=' +
+        pending.binding +
+        '; Path=/auth/callback; Max-Age=600; HttpOnly; SameSite=Lax' +
+        secure,
+    );
+    return pending.url;
+  }
+  // A real navigation URL supports the browser's new-tab and copy-link actions.
+  app.get('/auth/connect', async (request, reply) => {
+    const query = z
+      .object({ key: z.string().max(1024), role: z.unknown().optional() })
+      .safeParse(request.query);
+    if (!query.success || !constantEqual(query.data.key, config.adminKey))
+      return reply
+        .code(401)
+        .send({ error: 'A valid dashboard key is required.' });
+    const body = roleBody.safeParse({ role: query.data.role });
+    if (!body.success)
+      return reply.code(400).send({ error: 'Choose streamer or bot.' });
+    return reply.redirect(beginAuthorization(body.data.role, reply));
+  });
   app.post(
     '/api/auth/start',
     { preHandler: requireAdmin },
     async (request, reply) => {
-      if (dependencies.extension?.mode === 'demo')
-        throw new CapsuleError(
-          409,
-          'Demo accounts are simulated. Use the demo controls.',
-        );
       const body = roleBody.safeParse(request.body);
       if (!body.success)
         return reply.code(400).send({ error: 'Choose streamer or bot.' });
-      const pending = auth.begin(body.data.role);
-      const secure =
-        new URL(config.baseUrl).protocol === 'https:' ? '; Secure' : '';
-      reply.header(
-        'Set-Cookie',
-        pending.cookieName +
-          '=' +
-          pending.binding +
-          '; Path=/auth/callback; Max-Age=600; HttpOnly; SameSite=Lax' +
-          secure,
-      );
-      return { url: pending.url };
+      return { url: beginAuthorization(body.data.role, reply) };
     },
   );
   app.post(

@@ -155,6 +155,35 @@ describe('Pure trigger decisions', () => {
     expect(resumed.openingDueAt).toBe(new Date(epoch + 15_000).toISOString());
     expect(advance(postponed, facts(), 'open').openingDueAt).toBeNull();
   });
+  it('keeps the first live deadline when Open now is clicked repeatedly', () => {
+    let ready = advance(capsule(), facts({ live: true }), 'open');
+    const due = ready.openingDueAt;
+    for (const elapsed of [1000, 2000, 4000, 5000]) {
+      ready = advance(
+        ready,
+        facts({ live: true, now: epoch + elapsed, openingAllowed: false }),
+        'open',
+      );
+      expect(ready.openingDueAt).toBe(due);
+    }
+    expect(
+      advance(ready, facts({ live: true, now: epoch + 5000 })).status,
+    ).toBe('opening');
+  });
+  it('can shorten an offline settling delay once without resetting it on retries', () => {
+    const offline = advance(capsule(), facts(), 'open');
+    const live = advance(offline, facts({ live: true, now: epoch + 1000 }));
+    const sooner = advance(
+      live,
+      facts({ live: true, now: epoch + 2000 }),
+      'open',
+    );
+    expect(sooner.openingDueAt).toBe(new Date(epoch + 7000).toISOString());
+    expect(
+      advance(sooner, facts({ live: true, now: epoch + 6000 }), 'open')
+        .openingDueAt,
+    ).toBe(sooner.openingDueAt);
+  });
   it('supports postponing before a condition is reached without replacing that condition', () => {
     const c = capsule({ triggerType: 'followers', triggerValue: 10 });
     const postponed = advance(c, facts(), 'postpone');

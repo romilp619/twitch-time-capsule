@@ -1,0 +1,738 @@
+[
+  {
+    "id": "01",
+    "phase": 0,
+    "title": "A message today. A moment to come back to.",
+    "narration": "This is Time Capsule: a Twitch chat experience that saves predictions now and reveals them together on a future stream. This walkthrough uses your real build screenshots, from the first server to the complete demo.",
+    "bullets": [
+      "Your screenshots, all eight phases",
+      "Streamer, viewer, moderator and OBS flows",
+      "Narrated build and demo walkthrough"
+    ],
+    "shot": "79ec1850-03eb-4443-af88-417d8a63e485",
+    "crop": 0,
+    "mask": null,
+    "kind": "screen",
+    "code": null
+  },
+  {
+    "id": "02",
+    "phase": 1,
+    "title": "Start the local app",
+    "narration": "Phase one starts in the time capsule project inside WSL. Use Linux Node and npm, install the dependencies, and start the development server. Keep that terminal running while using the dashboard or OBS overlay.",
+    "bullets": [
+      "Open the WSL project folder",
+      "Install dependencies once",
+      "Leave the server running"
+    ],
+    "shot": null,
+    "crop": 0,
+    "mask": null,
+    "kind": "terminal",
+    "code": "cd ~/hackathon_projects/time-capsule\nexport PATH=\"$PWD/.tools/node/bin:$PATH\"\nnpm ci\nnpm run dev"
+  },
+  {
+    "id": "03",
+    "phase": 1,
+    "title": "Confirm the foundation",
+    "narration": "Open localhost, port three thousand, slash health. An okay response confirms the server and SQLite database are available. The current build reports phase eight. Tests, type checking, lint, and build checks verify the foundation and later phases.",
+    "bullets": [
+      "Fastify + TypeScript",
+      "SQLite with persistent migrations",
+      "Private dashboard and overlay keys"
+    ],
+    "shot": null,
+    "crop": 0,
+    "mask": null,
+    "kind": "health",
+    "code": "{\n  \"status\": \"ok\",\n  \"app\": \"time-capsule\",\n  \"phase\": 8,\n  \"database\": \"ok\"\n}"
+  },
+  {
+    "id": "04",
+    "phase": 2,
+    "title": "Register the Twitch application",
+    "narration": "In the Twitch Developer Console, register a confidential Chat Bot application. Set the callback to localhost, port three thousand, slash auth slash callback, exactly. Put the client credentials in the local environment file, then restart the app.",
+    "bullets": [
+      "Category: Chat Bot",
+      "Client type: Confidential",
+      "Callback must match exactly"
+    ],
+    "shot": "181fa4d6-c29e-4359-b2fd-2f1feea186d9",
+    "crop": 0,
+    "mask": "console",
+    "kind": "screen",
+    "code": null
+  },
+  {
+    "id": "05",
+    "phase": 2,
+    "title": "Connect your streamer account",
+    "narration": "Open the private dashboard link printed by the server and connect the streamer account. Your screenshot confirms romilg16 is connected and ready to moderate. One account is enough; a separate bot is optional and must be a channel moderator.",
+    "bullets": [
+      "Authorize the correct Twitch account",
+      "Single-account mode works",
+      "Recheck connection after bot moderation"
+    ],
+    "shot": "7604b3a1-a1df-4524-9e94-544932f785b3",
+    "crop": 0,
+    "mask": null,
+    "kind": "screen",
+    "code": null
+  },
+  {
+    "id": "06",
+    "phase": 3,
+    "title": "Listen to live channel events",
+    "narration": "Phase three connects Twitch EventSub and live dashboard updates. Your screenshot shows EventSub connected and a received chat event. This confirms messages can travel from Twitch into the local application, even while the channel is offline.",
+    "bullets": [
+      "EventSub: Connected",
+      "Live dashboard updates connected",
+      "Channel activity records incoming events"
+    ],
+    "shot": "a1b7b76f-22d8-4ee3-8637-348ee550df2a",
+    "crop": 0,
+    "mask": null,
+    "kind": "screen",
+    "code": null
+  },
+  {
+    "id": "07",
+    "phase": 3,
+    "title": "Send a viewer message",
+    "narration": "From a second Twitch account, open the streamer channel and send a simple message. Here, romil100 sends hi in romilg16’s chat. Match it with the dashboard event to check the correct channel and viewer identity.",
+    "bullets": [
+      "Viewer: romil100",
+      "Channel: romilg16",
+      "Match the message with the event log"
+    ],
+    "shot": "02a3b399-f573-4bc2-86c9-21c0661905ca",
+    "crop": 60,
+    "mask": null,
+    "kind": "screen",
+    "code": null
+  },
+  {
+    "id": "08",
+    "phase": 3,
+    "title": "Check the capsule command",
+    "narration": "Now send exclamation capsule. With no capsule accepting messages, the bot replies that no capsule is open for sealing. That is the correct response and verifies both command handling and outbound chat before creating a capsule.",
+    "bullets": [
+      "Type !capsule",
+      "Bot replies in the same channel",
+      "No active capsule is an expected state"
+    ],
+    "shot": "1a1369f3-57ed-4ec7-bd52-0b9d2437724a",
+    "crop": 18,
+    "mask": null,
+    "kind": "screen",
+    "code": null
+  },
+  {
+    "id": "09",
+    "phase": 4,
+    "title": "Choose a capsule title and limits",
+    "narration": "Phase four adds capsule creation and sealing. Give the capsule a clear title, choose its opening condition, and set viewer limits. This example uses Test predictions, three messages per viewer, and a maximum length of two hundred and eighty characters.",
+    "bullets": [
+      "Title: Test predictions",
+      "Up to 3 seals per viewer",
+      "Maximum message length: 280"
+    ],
+    "shot": "cc6c5352-d469-44ac-838e-a9481ea75f0f",
+    "crop": 0,
+    "mask": null,
+    "kind": "screen",
+    "code": null
+  },
+  {
+    "id": "10",
+    "phase": 4,
+    "title": "Create the capsule",
+    "narration": "Click Create capsule. The new card should show Sealing and a sealed-message count. Only one capsule accepts new seals at a time. Lock or archive that capsule before creating another; locked capsules preserve their existing messages.",
+    "bullets": [
+      "Create capsule → SEALING",
+      "Public link is separate from the dashboard",
+      "One capsule collects seals at a time"
+    ],
+    "shot": "73407880-ad19-4746-ad3e-8f8c91cde9ba",
+    "crop": 60,
+    "mask": null,
+    "kind": "screen",
+    "code": null
+  },
+  {
+    "id": "11",
+    "phase": 4,
+    "title": "Seal from another account",
+    "narration": "From the viewer account, send exclamation seal followed by a prediction. The app saves and numbers it, attempts to delete the original chat message, and sends a receipt. Your screenshot shows message one sealed and the viewer message removed.",
+    "bullets": [
+      "!seal I predict we will win the next round",
+      "Viewer message disappears from chat",
+      "Bot confirms the seal number"
+    ],
+    "shot": "45fd87d0-4339-44ba-8d2e-319dcf247b19",
+    "crop": 70,
+    "mask": null,
+    "kind": "screen",
+    "code": null
+  },
+  {
+    "id": "12",
+    "phase": 4,
+    "title": "Inspect the public capsule page",
+    "narration": "The public page shows the title, opening condition, sealed count, and instructions for viewers. It does not show private message contents. Validation also enforces message length, blocked words, cooldowns, and the configured per-viewer limit.",
+    "bullets": [
+      "Metadata and counts only",
+      "!seal instructions for viewers",
+      "Cooldown, limits and validation"
+    ],
+    "shot": "b1c53b68-4bcf-4c1a-b092-490f8d30ae76",
+    "crop": 50,
+    "mask": null,
+    "kind": "screen",
+    "code": null
+  },
+  {
+    "id": "13",
+    "phase": 5,
+    "title": "A ready capsule still waits for a live stream",
+    "narration": "Phase five adds automatic opening conditions and manual controls. Open now can override the chosen condition, but opening still requires a live stream. Your offline screenshot correctly shows Ready, waiting for the next live stream.",
+    "bullets": [
+      "Manual opening respects the live gate",
+      "READY does not mean revealed",
+      "Settling delay runs once the stream is live"
+    ],
+    "shot": "1cbfec3b-f02f-44c5-92fb-3d65c4c62119",
+    "crop": 52,
+    "mask": null,
+    "kind": "screen",
+    "code": null
+  },
+  {
+    "id": "14",
+    "phase": 5,
+    "title": "Postpone without losing the seals",
+    "narration": "Postpone delays the opening by ten minutes while preserving the capsule’s messages and original condition. The dashboard displays the new deadline. The live-stream requirement still applies, so an offline channel does not reveal anything accidentally.",
+    "bullets": [
+      "Postpone 10 min",
+      "Existing seals stay saved",
+      "Wait for the deadline and a live stream"
+    ],
+    "shot": "c9244b4e-154f-40ee-b244-373f29731212",
+    "crop": 52,
+    "mask": null,
+    "kind": "screen",
+    "code": null
+  },
+  {
+    "id": "15",
+    "phase": 5,
+    "title": "Use the right opening condition",
+    "narration": "The four opening choices are manual, a date, a follower goal, or the first stream in a selected category. Your GTA 6 capsule was configured for Grand Theft Auto Three. The displayed category, rather than the title, controls this trigger.",
+    "bullets": [
+      "Manual • date • follower goal • category",
+      "Category matching uses the category ID",
+      "Title and opening category are independent"
+    ],
+    "shot": "1dbf1be7-39ee-495f-bb2e-694689a40310",
+    "crop": 65,
+    "mask": null,
+    "kind": "screen",
+    "code": null
+  },
+  {
+    "id": "16",
+    "phase": 5,
+    "title": "Archive is a different action",
+    "narration": "Archiving preserves existing seals and stops that capsule’s normal workflow. In your screenshot, Test predictions is archived while GTA 6 is still sealing. Archiving a capsule does not start a Twitch broadcast; streaming is controlled separately in OBS.",
+    "bullets": [
+      "ARCHIVED preserves existing messages",
+      "Another capsule may still be SEALING",
+      "OBS starts the actual Twitch stream"
+    ],
+    "shot": "e01fc72c-4a7e-4529-a577-b2863ecf9b97",
+    "crop": 60,
+    "mask": null,
+    "kind": "screen",
+    "code": null
+  },
+  {
+    "id": "17",
+    "phase": 5,
+    "title": "Connect OBS to Twitch",
+    "narration": "In OBS Settings, open Stream and choose Twitch. Connect the streamer account and keep the recommended automatic server. Your screenshot shows the account connected. Leave bandwidth test mode off when the goal is a real live test.",
+    "bullets": [
+      "OBS → Settings → Stream",
+      "Service: Twitch",
+      "Connected account + recommended server"
+    ],
+    "shot": "cad76c3a-1c59-4421-8852-f2b0f2699c49",
+    "crop": 0,
+    "mask": null,
+    "kind": "screen",
+    "code": null
+  },
+  {
+    "id": "18",
+    "phase": 5,
+    "title": "Check Twitch Stream Manager",
+    "narration": "Open Twitch Stream Manager for romilg16 to monitor the broadcast. Before OBS starts transmitting, Offline is expected. The stream preview, chat, activity feed, and stream information help confirm that OBS is using the intended channel.",
+    "bullets": [
+      "Correct channel: romilg16",
+      "Offline is expected before streaming",
+      "Monitor the preview and chat"
+    ],
+    "shot": "7f5ba5c0-c16b-429f-8015-45eda2026c68",
+    "crop": 110,
+    "mask": null,
+    "kind": "screen",
+    "code": null
+  },
+  {
+    "id": "19",
+    "phase": 5,
+    "title": "Keep the local dashboard running",
+    "narration": "Keep the Time Capsule server and dashboard open during the test. The opening checks show the live state, follower count, and category. This screenshot is still offline, so the capsule is waiting even though opening controls are visible.",
+    "bullets": [
+      "Server must keep running",
+      "Watch Opening checks",
+      "Offline capsules stay private"
+    ],
+    "shot": "a22e2e25-d107-4868-8607-7d8ec5e74be2",
+    "crop": 115,
+    "mask": null,
+    "kind": "screen",
+    "code": null
+  },
+  {
+    "id": "20",
+    "phase": 5,
+    "title": "Set stream information",
+    "narration": "In OBS Stream Information, enter a title such as Time Capsule test and select the category required by your capsule. Click Done to save. A stream title describes the broadcast; the category is a separate field used by the category trigger.",
+    "bullets": [
+      "Title: Time Capsule test",
+      "Select the configured category",
+      "Click Done to save stream information"
+    ],
+    "shot": "0891661f-6620-459c-85e7-54075aabe00f",
+    "crop": 0,
+    "mask": null,
+    "kind": "screen",
+    "code": null
+  },
+  {
+    "id": "21",
+    "phase": 5,
+    "title": "Choose accurate stream labels",
+    "narration": "The Rerun checkbox is for previously recorded broadcasts. Branded Content applies when that stream actually includes the commercial relationships described by Twitch. Choose labels that match your broadcast; a mature-game category may add its own locked content label.",
+    "bullets": [
+      "Rerun: only for prerecorded broadcasts",
+      "Branded Content: when applicable",
+      "Keep category-based labels accurate"
+    ],
+    "shot": "ee3766de-af04-4f70-acc0-9e92f27de2e1",
+    "crop": 0,
+    "mask": null,
+    "kind": "screen",
+    "code": null
+  },
+  {
+    "id": "22",
+    "phase": 5,
+    "title": "Start the broadcast in OBS",
+    "narration": "After saving stream information, use Start Streaming in the OBS Controls panel. Your next screenshot shows Stop Streaming, confirming OBS started sending. Watch the status bar and check Stream Manager for a live broadcast.",
+    "bullets": [
+      "Controls → Start Streaming",
+      "Button changes to Stop Streaming",
+      "Verify Twitch reports LIVE"
+    ],
+    "shot": "dfcc0adc-e932-4301-a435-fbaf018bd999",
+    "crop": 0,
+    "mask": null,
+    "kind": "screen",
+    "code": null
+  },
+  {
+    "id": "23",
+    "phase": 5,
+    "title": "A black preview needs a source",
+    "narration": "A black stream does not mean you must play a game. OBS needs a visible source to capture. Your Twitch screenshot shows a live but black preview, with an unstable connection indicator. Source visibility and connection stability are separate checks.",
+    "bullets": [
+      "Add a visible capture source",
+      "A game is optional for this test",
+      "Investigate instability separately"
+    ],
+    "shot": "9a3e6df8-5d2f-4253-8adb-19781f5668dc",
+    "crop": 65,
+    "mask": null,
+    "kind": "screen",
+    "code": null
+  },
+  {
+    "id": "24",
+    "phase": 5,
+    "title": "Add Window Capture",
+    "narration": "Use the plus button under Sources and add Window Capture. Select a safe window, such as a terminal without credentials, and fit it to the canvas. Your OBS screenshot shows the terminal capture active while the camera source is hidden.",
+    "bullets": [
+      "Sources → + → Window Capture",
+      "Select the intended window",
+      "Fit the source to the canvas"
+    ],
+    "shot": "28d32b7c-5c72-4fbb-a60f-1b19b52a7802",
+    "crop": 0,
+    "mask": null,
+    "kind": "screen",
+    "code": null
+  },
+  {
+    "id": "25",
+    "phase": 5,
+    "title": "Confirm the stream receives video",
+    "narration": "The Twitch preview now shows the captured terminal, so OBS is sending visible content. Keep the chosen category aligned with the capsule condition, and wait for the opening delay. The app can test this workflow without requiring actual gameplay.",
+    "bullets": [
+      "Visible terminal reaches Twitch",
+      "Watch live state and category",
+      "Wait for the configured opening delay"
+    ],
+    "shot": "1f1d5bf2-8869-41c3-b338-ca2080b7f9a6",
+    "crop": 115,
+    "mask": null,
+    "kind": "screen",
+    "code": null
+  },
+  {
+    "id": "26",
+    "phase": 6,
+    "title": "An empty ceremony has nothing to reveal",
+    "narration": "Phase six adds the opening ceremony and moderation queue. Your first GTA 6 test had zero messages, so Reveal next and auto-reveal were disabled. End ceremony is appropriate after testing an empty queue; the capsule and its decisions remain saved.",
+    "bullets": [
+      "Zero messages means no reveal",
+      "Approve pending messages before revealing",
+      "End ceremony clears the overlay"
+    ],
+    "shot": "ed6fc38f-64b8-44ea-96dc-7dc9ba1e127c",
+    "crop": 55,
+    "mask": null,
+    "kind": "screen",
+    "code": null
+  },
+  {
+    "id": "27",
+    "phase": 6,
+    "title": "The overlay is a Browser Source",
+    "narration": "The Time Capsule overlay is not a built-in OBS dock. Add it as a Browser Source from the Sources panel. Your screenshot still shows only Window Capture and the camera, so the overlay needs its own source above them.",
+    "bullets": [
+      "Sources → + → Browser",
+      "Name it Time Capsule Overlay",
+      "Place it above the capture sources"
+    ],
+    "shot": "1fc68b66-b634-4924-8b1e-6f1057589bec",
+    "crop": 0,
+    "mask": null,
+    "kind": "screen",
+    "code": null
+  },
+  {
+    "id": "28",
+    "phase": 6,
+    "title": "Copy the private OBS URL",
+    "narration": "Scroll to Your OBS overlay in the dashboard and copy its Browser Source URL. Use the overlay link, not the dashboard or public page. The monitor’s checkerboard represents transparency. The ten-second preview uses sample cards and does not change your capsules.",
+    "bullets": [
+      "Copy OBS URL from the dashboard",
+      "Preview uses sample messages",
+      "Keep the private URL out of broadcasts"
+    ],
+    "shot": "7c053b5a-c071-481f-8521-7518f4b3eaa8",
+    "crop": 0,
+    "mask": "overlay-panel",
+    "kind": "screen",
+    "code": null
+  },
+  {
+    "id": "29",
+    "phase": 6,
+    "title": "Configure the Browser Source",
+    "narration": "Paste the complete overlay URL into the OBS Browser Source. Set the width to nineteen twenty and the height to ten eighty. The screenshot shows ten seventy-nine, so correct that field. Disable shutting down hidden sources and refreshing the browser when the scene becomes active.",
+    "bullets": [
+      "Width 1920 × height 1080",
+      "Paste the complete private overlay URL",
+      "Keep the source alive between scenes"
+    ],
+    "shot": "3ae47911-b7e3-4576-b4d4-13515037b64c",
+    "crop": 0,
+    "mask": "obs-url",
+    "kind": "screen",
+    "code": null
+  },
+  {
+    "id": "30",
+    "phase": 6,
+    "title": "A transparent idle overlay is expected",
+    "narration": "You do not need to open the overlay in a separate browser first. OBS loads it directly. Outside a ceremony or preview, it is intentionally empty and transparent. With every background source hidden, that transparent canvas looks black.",
+    "bullets": [
+      "OBS loads the URL directly",
+      "Idle overlay is transparent",
+      "Show the capture source underneath"
+    ],
+    "shot": "eeaa4246-d658-4b15-a8fd-61ab68447552",
+    "crop": 0,
+    "mask": null,
+    "kind": "screen",
+    "code": null
+  },
+  {
+    "id": "31",
+    "phase": 6,
+    "title": "Approve before revealing",
+    "narration": "Once a capsule opens, review its private moderation queue. Approve messages you want to show and reject anything unsuitable. This screenshot has one approved message and no pending messages, so the Pending filter looks empty. Change the filter to inspect approved entries.",
+    "bullets": [
+      "Review → Approve or Reject",
+      "Pending filter hides approved entries",
+      "Reveal next or press N outside a field"
+    ],
+    "shot": "b6da89ff-56eb-4b82-94bc-6a8d4528be95",
+    "crop": 0,
+    "mask": null,
+    "kind": "screen",
+    "code": null
+  },
+  {
+    "id": "32",
+    "phase": 6,
+    "title": "Control the opening ceremony",
+    "narration": "Use Reveal next for one approved card, or Start auto-reveal for timed progression. Press N only when you are not typing into a field. Overlay settings control card side, size, and interval. End ceremony clears the cards and preserves the review history.",
+    "bullets": [
+      "Manual reveal or timed auto-reveal",
+      "Card side, size and reveal interval",
+      "End ceremony preserves decisions"
+    ],
+    "shot": null,
+    "crop": 0,
+    "mask": null,
+    "kind": "workflow",
+    "code": "SEALED\n  ↓ opening condition + live stream\nPRIVATE MODERATION QUEUE\n  ↓ approve\nREVEAL ON OBS\n  ↓ end ceremony\nEMPTY, TRANSPARENT OVERLAY"
+  },
+  {
+    "id": "33",
+    "phase": 7,
+    "title": "Create a Prophet VIP test capsule",
+    "narration": "Phase seven recognizes predictions that come true. Create a new capsule called Prophet VIP Test, choose a manual opening for testing, and enable Reward Prophets with VIP if you want to test the role reward. This example uses thirty days.",
+    "bullets": [
+      "Title: Prophet VIP Test",
+      "Opening: When I choose",
+      "Enable VIP before collecting messages"
+    ],
+    "shot": "5de76c87-1747-4aaa-9943-e86062661e9b",
+    "crop": 0,
+    "mask": null,
+    "kind": "screen",
+    "code": null
+  },
+  {
+    "id": "34",
+    "phase": 7,
+    "title": "Send the prediction as a viewer",
+    "narration": "From the separate viewer account, send exclamation seal followed by the prediction. Here, romil100’s message is removed and the bot confirms sealed message one. Broadcaster and moderator messages cannot always be hidden, which is why a normal viewer account is useful.",
+    "bullets": [
+      "Use a normal viewer account",
+      "!seal + the prediction text",
+      "Wait for the numbered bot receipt"
+    ],
+    "shot": "41d52e60-3aa8-4fcd-824e-5e815e69fd5b",
+    "crop": 60,
+    "mask": null,
+    "kind": "screen",
+    "code": null
+  },
+  {
+    "id": "35",
+    "phase": 7,
+    "title": "Open the test capsule while live",
+    "narration": "With the stream live, click Open now and wait through the delay and opening animation. The capsule changes to Opening and directs you to the ceremony controls. Approve the saved prediction, then reveal it before trying to mark it true.",
+    "bullets": [
+      "Go live → Open now",
+      "Wait for opening and animation",
+      "Approve → Reveal next"
+    ],
+    "shot": "c1751de5-1a1b-486a-9f05-d84d15a132c4",
+    "crop": 65,
+    "mask": null,
+    "kind": "screen",
+    "code": null
+  },
+  {
+    "id": "36",
+    "phase": 7,
+    "title": "Mark a revealed prediction true",
+    "narration": "In Prophets, mark the revealed prediction Came true only when it actually happened. This saves the recognition, adds the Prophet badge and Came True stamp to the overlay, and attempts the optional reward. Your OBS screenshot shows the recognition working.",
+    "bullets": [
+      "Only revealed predictions qualify",
+      "CAME TRUE stamp + PROPHET badge",
+      "Recognition is saved persistently"
+    ],
+    "shot": "79ec1850-03eb-4443-af88-417d8a63e485",
+    "crop": 0,
+    "mask": null,
+    "kind": "screen",
+    "code": null
+  },
+  {
+    "id": "37",
+    "phase": 7,
+    "title": "Confirm the chat announcement",
+    "narration": "The bot also announces the Prophet in Twitch chat. Your screenshot confirms romil100’s prediction came true. The announcement and overlay recognition are separate from VIP eligibility, so those can succeed even when Twitch refuses a role reward.",
+    "bullets": [
+      "Prophet announcement reaches Twitch",
+      "Overlay and chat confirm recognition",
+      "VIP is a separate result"
+    ],
+    "shot": "da001fae-1fea-419e-8d2d-50bfc1b828b1",
+    "crop": 65,
+    "mask": null,
+    "kind": "screen",
+    "code": null
+  },
+  {
+    "id": "38",
+    "phase": 7,
+    "title": "If the overlay vanishes, check the eye icon",
+    "narration": "This OBS screenshot shows the Browser Source hidden while Window Capture is visible. Click the crossed-out eye beside Browser to show it, and keep it above the capture source. A working overlay cannot appear in the broadcast while its source is hidden.",
+    "bullets": [
+      "Crossed-out eye means hidden",
+      "Show Browser above Window Capture",
+      "Keep the capture source visible below"
+    ],
+    "shot": "82c4000c-3064-4d65-8e1b-fa9488dda1a4",
+    "crop": 0,
+    "mask": null,
+    "kind": "screen",
+    "code": null
+  },
+  {
+    "id": "39",
+    "phase": 7,
+    "title": "Read the real VIP result honestly",
+    "narration": "The real Twitch test returned No free VIP slots. The prediction still became a Prophet and the chat announcement succeeded, but VIP was not granted. Free a slot if the channel is eligible, then use Retry VIP. Never treat this error as a successful grant.",
+    "bullets": [
+      "Real test: no free VIP slots",
+      "Prophet recognition still succeeded",
+      "Resolve the issue, then Retry VIP"
+    ],
+    "shot": "2098ecda-c587-4ae6-ae5d-c60e2bc6445d",
+    "crop": 0,
+    "mask": null,
+    "kind": "screen",
+    "code": null
+  },
+  {
+    "id": "40",
+    "phase": 7,
+    "title": "End the ceremony and preserve the result",
+    "narration": "End ceremony returns the overlay to empty and transparent. Your dashboard keeps the prediction, recognition, and VIP error for review. The app checks reward expiry at startup and hourly, and only removes temporary VIP roles it owns; existing VIPs are preserved.",
+    "bullets": [
+      "End ceremony clears the overlay",
+      "Recognition and errors stay saved",
+      "Owned VIP rewards expire; existing VIPs remain"
+    ],
+    "shot": "f10baf63-33b1-4b8b-b9d3-43c3062270bd",
+    "crop": 0,
+    "mask": null,
+    "kind": "screen",
+    "code": null
+  },
+  {
+    "id": "41",
+    "phase": 7,
+    "title": "Visit the Wall of Prophets",
+    "narration": "Open the capsule’s public page after the ceremony. Your screenshot shows romil100 on the Wall of Prophets with one prediction that came true. The public view shows display names and counts, while private message contents and reward-management details remain in the dashboard.",
+    "bullets": [
+      "Public recognition after the ceremony",
+      "Display names and counts",
+      "No private message text on the public page"
+    ],
+    "shot": "18cc7537-bce8-41dc-b60e-7419621266c2",
+    "crop": 0,
+    "mask": null,
+    "kind": "screen",
+    "code": null
+  },
+  {
+    "id": "42",
+    "phase": 8,
+    "title": "Try it without a Twitch account",
+    "narration": "Phase eight adds a completely separate account-free demo. Run npm run demo and open the printed URL. It uses fictional Twitch accounts, fresh demo storage, and fake messages and VIP roles. Your real capsule database and connected account are not used.",
+    "bullets": [
+      "npm run demo",
+      "No .env or Twitch account needed",
+      "Separate data and fake rewards"
+    ],
+    "shot": "phase8-demo",
+    "crop": 0,
+    "mask": null,
+    "kind": "screen",
+    "code": null
+  },
+  {
+    "id": "43",
+    "phase": 8,
+    "title": "Play the full ninety-second story",
+    "narration": "Click Play full story. Twenty sample viewers seal predictions, a week of simulated time passes, the stream goes live, and the category changes. The production trigger and ceremony services open the capsule, reveal three approved highlights, and award one fake VIP.",
+    "bullets": [
+      "20 viewers → live category change",
+      "Approve → reveal three highlights",
+      "One Came true → fake VIP → clear overlay"
+    ],
+    "shot": null,
+    "crop": 0,
+    "mask": null,
+    "kind": "story",
+    "code": "00:03–00:22   20 viewers seal\n00:26        Lock sealing\n00:30        Advance simulated time\n00:38        Go live\n00:45        Change category\n00:58        Approve messages\n01:00–01:08   Reveal highlights\n01:12        Came true + fake VIP\n01:22–01:30   End and complete"
+  },
+  {
+    "id": "44",
+    "phase": 8,
+    "title": "Explore the manual demo controls",
+    "narration": "You can also create category, date, or follower-goal demo capsules. Send sample seals, fast-forward the date, go live, or reach a thousand followers. Stop the automatic story before using manual controls. The date scenario correctly waits offline until the simulated stream goes live.",
+    "bullets": [
+      "Category, date and follower scenarios",
+      "Stop story before manual controls",
+      "Fake events use the real app workflow"
+    ],
+    "shot": "phase8-demo",
+    "crop": 0,
+    "mask": null,
+    "kind": "screen",
+    "code": null
+  },
+  {
+    "id": "45",
+    "phase": 8,
+    "title": "Verify EventSub with the Twitch CLI",
+    "narration": "For a separate socket test, start the Twitch CLI mock WebSocket server, then run npm run test colon CLI. Trigger a version two channel update for fictional broadcaster ten thousand and one. The client should report the matching category notification. This does not contact your real channel.",
+    "bullets": [
+      "Strict mock server on loopback",
+      "Real EventSub client subscribes",
+      "Trigger channel.update and check notification"
+    ],
+    "shot": null,
+    "crop": 0,
+    "mask": null,
+    "kind": "cli",
+    "code": "twitch event websocket start-server --require-subscription\n\nnpm run test:cli\n\ntwitch event trigger channel.update \\\n  --transport=websocket --version=2 \\\n  --to-user=10001 --game-id=900000001 \\\n  --item-name=\"Grand Theft Auto VI\""
+  },
+  {
+    "id": "46",
+    "phase": 8,
+    "title": "From the first server to the full story",
+    "narration": "All eight completed phases are covered: the server, authentication, live events, sealing, opening triggers, OBS ceremonies, Prophet rewards, and the isolated demo. The build passed one hundred and ninety-three tests, type checking, lint, and compilation. Phase nine remains future polish.",
+    "bullets": [
+      "Phases 1–8 complete",
+      "193 tests + typecheck + lint + build",
+      "Seal today. Reveal when it matters."
+    ],
+    "shot": null,
+    "crop": 0,
+    "mask": null,
+    "kind": "outro",
+    "code": "01  Foundation        05  Opening triggers\n02  Twitch auth       06  Ceremony + OBS\n03  EventSub + chat   07  Prophets + VIP\n04  Capsules + seals  08  Account-free demo"
+  }
+]

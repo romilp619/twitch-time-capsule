@@ -74,9 +74,16 @@ export function nextTriggerState(
     return state;
   }
   if (state.openingDueAt === null || action === 'open') {
-    state.openingDueAt = new Date(
+    const requestedDue =
       facts.now +
-        (becameReady || action === 'open' ? 5000 : facts.offlineDelayMs),
+      (becameReady || action === 'open' ? 5000 : facts.offlineDelayMs);
+    // Open now may shorten a settling delay or override postponement, but
+    // retries must never push an already scheduled opening further away.
+    state.openingDueAt = new Date(
+      Math.min(
+        state.openingDueAt ? Date.parse(state.openingDueAt) : Infinity,
+        requestedDue,
+      ),
     ).toISOString();
   }
   const due = Math.max(

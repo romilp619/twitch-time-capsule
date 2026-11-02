@@ -101,7 +101,7 @@ describe('Capsule page escaping', () => {
     );
   });
 
-  it('renders Wall of Prophets names as literal text without messages or private role details', () => {
+  it('renders public Prophet names and winning predictions as literal text', () => {
     const context = dom();
     const capsule = {
       title: 'Opened capsule',
@@ -111,7 +111,16 @@ describe('Capsule page escaping', () => {
       sealedCount: 1,
       maxLength: 280,
       maxSealsPerUser: 3,
-      prophets: [{ displayName: attack, predictions: 2 }],
+      prophets: [
+        {
+          displayName: attack,
+          predictions: 2,
+          messages: [
+            { number: 1, text: attack },
+            { number: 2, text: 'Another winning prediction' },
+          ],
+        },
+      ],
     };
     runInNewContext(
       readFileSync(resolve(projectRoot, 'public/capsule/app.js'), 'utf8') +
@@ -121,8 +130,13 @@ describe('Capsule page escaping', () => {
       context,
     );
     expect(context.get('prophet-wall').hidden).toBe(false);
-    expect(context.get('prophet-wall-list').children[0]?.textContent).toBe(
-      '@' + attack + ' · PROPHET · 2 predictions came true',
+    expect(
+      context.get('prophet-wall-list').children[0]?.children[0]?.textContent,
+    ).toBe('@' + attack + ' · PROPHET · 2 predictions came true');
+    const row = context.get('prophet-wall-list').children[0]!;
+    expect(row.children[1]?.children[1]?.textContent).toBe(attack);
+    expect(row.children[2]?.children[1]?.textContent).toBe(
+      'Another winning prediction',
     );
   });
 
@@ -249,4 +263,93 @@ it('asks for confirmation before deleting Prophet cards or all revealed predicti
   context.get('delete-all-prophets').listeners.click!();
   expect(confirm).toHaveBeenCalledTimes(2);
   expect(fetch).not.toHaveBeenCalled();
+});
+
+it.each([
+  [null, 'Waiting for live stream', true],
+  [new Date(Date.now() + 5000).toISOString(), 'Opening scheduled', true],
+  [new Date(Date.now() + 60_000).toISOString(), 'Open sooner', false],
+])(
+  'shows a queued opening without encouraging duplicate clicks (%s)',
+  (due, label, disabled) => {
+    const context = dom();
+    const capsule = {
+      id: 1,
+      title: 'Click once',
+      slug: 'click-once',
+      status: 'ready',
+      triggerType: 'manual',
+      channel: { login: 'streamer' },
+      createdAt: new Date().toISOString(),
+      sealedCount: 2,
+      visibleCount: 0,
+      openingDueAt: due,
+      postponedUntil: null,
+    };
+    runInNewContext(
+      readFileSync(
+        resolve(projectRoot, 'public/dashboard/capsules.js'),
+        'utf8',
+      ) +
+        '\nrenderCapsules(' +
+        JSON.stringify([capsule]) +
+        ');',
+      context,
+    );
+    const card = context.get('capsule-list').children[0]!;
+    const button = card.children
+      .at(-1)!
+      .children.find((b) => b.className === 'primary open-now')!;
+    expect(button.textContent).toBe(label);
+    expect(button.disabled).toBe(disabled);
+    expect(
+      card.children.find((e) => e.className === 'opening-timing')?.textContent,
+    ).toContain('No further clicks needed.');
+  },
+);
+
+it('explains a capsule waiting behind another ceremony and links to that ceremony', () => {
+  const context = dom();
+  const current = {
+    id: 1,
+    title: 'Previous capsule',
+    slug: 'previous',
+    status: 'opening',
+    triggerType: 'manual',
+    channel: { login: 'streamer' },
+    createdAt: new Date().toISOString(),
+    sealedCount: 2,
+    visibleCount: 0,
+  };
+  const queued = {
+    ...current,
+    id: 2,
+    title: 'Next capsule',
+    slug: 'next',
+    status: 'ready',
+    openingDueAt: new Date(Date.now() - 60000).toISOString(),
+    postponedUntil: null,
+  };
+  runInNewContext(
+    readFileSync(resolve(projectRoot, 'public/dashboard/capsules.js'), 'utf8') +
+      '\nrenderCapsules(' +
+      JSON.stringify([queued, current]) +
+      ');',
+    context,
+  );
+  const card = context.get('capsule-list').children[0]!;
+  expect(card.children[0]?.children[1]?.textContent).toBe('QUEUED');
+  expect(
+    card.children.find((node) => node.className === 'opening-timing')
+      ?.textContent,
+  ).toContain('End ceremony');
+  const actions = card.children.at(-1)!;
+  expect(
+    actions.children.find(
+      (node) => node.textContent === 'Go to current ceremony →',
+    )?.href,
+  ).toBe('#ceremony-title');
+  expect(
+    actions.children.some((node) => node.textContent === 'Opening scheduled'),
+  ).toBe(false);
 });

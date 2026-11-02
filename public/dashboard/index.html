@@ -6,6 +6,7 @@
     <title>Time Capsule - Dashboard</title>
     <link rel="stylesheet" href="/dashboard/ceremony.css" />
     <link rel="stylesheet" href="/dashboard/style.css" />
+    <script src="/dashboard/workspace.js" defer></script>
     <script src="/dashboard/app.js" defer></script>
     <script src="/dashboard/capsules.js" defer></script>
     <script src="/dashboard/ceremony.js" defer></script>
@@ -13,455 +14,856 @@
   </head>
   <body>
     <div class="shell">
-      <header>
-        <a class="brand" href="/health"
-          ><span class="brand-icon" aria-hidden="true"></span> TIME CAPSULE</a
-        ><span class="phase">CHANNEL CONNECTION</span>
-      </header>
-      <main>
-        <div class="intro">
-          <p class="eyebrow">THE FUTURE STARTS IN CHAT</p>
-          <h1>A little setup.<br />A lot to look forward to.</h1>
-          <p class="subtitle">
-            Connect your channel and choose who will keep its secrets.
-          </p>
+      <header class="app-header">
+        <a class="brand" href="#capsules-title"
+          ><span class="brand-icon" aria-hidden="true"></span>TIME CAPSULE</a
+        >
+        <div class="header-status">
+          <span id="workspace-live" class="live-pill">Checking stream</span
+          ><span class="private-label">Private workspace</span>
         </div>
-        <div id="feedback" role="status" aria-live="polite"></div>
-        <section
-          id="warnings"
-          class="warnings"
-          aria-live="polite"
-          aria-label="Connection warnings"
-        ></section>
-        <section class="accounts" aria-label="Twitch accounts">
-          <article class="account-card">
-            <div class="card-top">
-              <span class="card-number">01</span
-              ><span id="streamer-status" class="badge">LOADING</span>
-            </div>
-            <h2>Your channel</h2>
-            <p class="card-description">
-              The streamer account that owns your capsules and rewards your
-              Prophets.
-            </p>
-            <div class="identity">
-              <span class="avatar" aria-hidden="true">S</span>
-              <div>
-                <strong id="streamer-name">Not connected</strong>
-                <p id="streamer-login" class="muted">Connect to get started</p>
-              </div>
-            </div>
-            <p id="streamer-error" class="account-error"></p>
-            <p id="streamer-expiry" class="metadata"></p>
-            <details>
-              <summary>Permissions &amp; token status</summary>
-              <div id="streamer-scopes" class="scopes"></div>
-              <p id="streamer-validation" class="metadata"></p>
-            </details>
-            <div class="actions">
-              <button data-connect="streamer" class="primary" disabled>
-                Connect streamer account &#8599;</button
-              ><button data-disconnect="streamer" class="quiet" hidden>
-                Disconnect locally
-              </button>
-            </div>
-          </article>
-          <article class="account-card">
-            <div class="card-top">
-              <span class="card-number">02</span
-              ><span id="bot-status" class="badge">OPTIONAL</span>
-            </div>
-            <h2>Your capsule keeper</h2>
-            <p class="card-description">
-              A separate bot can seal messages and speak in chat. Or let your
-              streamer account do both.
-            </p>
-            <div class="identity">
-              <span class="avatar bot" aria-hidden="true">B</span>
-              <div>
-                <strong id="bot-name">Single-account mode</strong>
-                <p id="bot-login" class="muted">Uses your streamer account</p>
-              </div>
-            </div>
-            <p id="bot-error" class="account-error"></p>
-            <p id="bot-expiry" class="metadata"></p>
-            <details>
-              <summary>Permissions &amp; token status</summary>
-              <div id="bot-scopes" class="scopes"></div>
-              <p id="bot-validation" class="metadata"></p>
-            </details>
-            <div class="actions">
-              <button data-connect="bot" class="secondary" disabled>
-                Connect bot account &#8599;</button
-              ><button data-disconnect="bot" class="quiet" hidden>
-                Disconnect locally
-              </button>
-            </div>
-          </article>
-        </section>
-        <section class="channel-strip" aria-label="Channel checks">
-          <div>
-            <p class="eyebrow">STREAM</p>
-            <strong id="live-status">Waiting for channel</strong>
-          </div>
-          <div>
-            <p class="eyebrow">CHAT MODERATION</p>
-            <strong id="mod-status">Not checked</strong>
-          </div>
-          <div>
-            <p class="eyebrow">EVENTSUB</p>
-            <strong id="eventsub-status">Connecting...</strong>
-          </div>
-          <button id="refresh" class="secondary">Recheck connection</button>
-        </section>
-        <p id="checked-at" class="metadata"></p>
-        <p id="dashboard-updates" class="metadata" role="status">
-          Connecting live dashboard updates...
-        </p>
-        <details class="eventsub-details">
-          <summary>Event subscriptions &amp; keepalive</summary>
-          <div id="subscription-list"></div>
-        </details>
-
-        <section class="capsules-section" aria-labelledby="capsules-title">
-          <div class="log-header">
-            <h2 id="capsules-title">Capsules</h2>
-            <span class="metadata"
-              >A message today. A moment to come back to.</span
+      </header>
+      <div class="workspace-layout">
+        <aside class="workspace-sidebar">
+          <p class="nav-label">YOUR WORKSPACE</p>
+          <nav aria-label="Dashboard sections">
+            <a href="#capsules-title" data-workspace-nav="capsules"
+              ><span class="nav-icon">01</span><span>Capsules</span></a
             >
+            <a href="#ceremony-title" data-workspace-nav="ceremony"
+              ><span class="nav-icon">02</span><span>Opening ceremony</span
+              ><span id="ceremony-nav-count" class="nav-count" hidden></span
+            ></a>
+            <a href="#prophets-title" data-workspace-nav="prophets"
+              ><span class="nav-icon">03</span><span>Prophets</span></a
+            >
+            <span class="nav-divider"></span>
+            <a href="#overlay-title" data-workspace-nav="overlay"
+              ><span class="nav-icon" aria-hidden="true">▣</span
+              ><span>OBS overlay</span></a
+            >
+            <a href="#connection-title" data-workspace-nav="connection"
+              ><span class="nav-icon" aria-hidden="true">↗</span
+              ><span>Connection</span></a
+            >
+          </nav>
+          <div class="sidebar-note">
+            <span class="sidebar-dot" id="workspace-connection-dot"></span>
+            <div>
+              <strong id="workspace-channel">Your channel</strong>
+              <p id="workspace-connection-label">Checking connection</p>
+            </div>
           </div>
-          <div id="capsule-feedback" role="status" aria-live="polite"></div>
-          <div class="capsule-workspace">
-            <form id="capsule-form" class="capsule-form">
-              <h3>Create a time capsule</h3>
-              <label for="capsule-title">Title</label
-              ><input
-                id="capsule-title"
-                name="title"
-                required
-                maxlength="120"
-                placeholder="GTA 6 predictions"
-              />
-              <label for="capsule-trigger">Opening condition</label>
-              <select id="capsule-trigger" name="trigger">
-                <option value="manual">When I choose</option>
-                <option value="date">On a date</option>
-                <option value="followers">At a follower goal</option>
-                <option value="category">First stream in a category</option>
-              </select>
-              <div id="trigger-date" hidden>
-                <label for="capsule-date">Opening date (your local time)</label
-                ><input
-                  id="capsule-date"
-                  type="datetime-local"
-                  required
-                  disabled
-                />
+          <p class="sidebar-help">
+            Sealed today.<br />Revealed when it matters.
+          </p>
+        </aside>
+        <div class="workspace-content">
+          <main>
+            <div class="workspace-intro">
+              <p class="eyebrow">A LITTLE MESSAGE. A BIG MOMENT.</p>
+              <h1>Your time capsule studio</h1>
+              <p class="subtitle">
+                Collect predictions. Reveal memories. Celebrate the ones who
+                knew.
+              </p>
+            </div>
+            <div id="feedback" role="status" aria-live="polite"></div>
+            <section
+              id="warnings"
+              class="warnings"
+              aria-live="polite"
+              aria-label="Connection warnings"
+            ></section>
+            <div class="next-step" aria-label="Suggested next step">
+              <div>
+                <p class="eyebrow">NEXT UP</p>
+                <h2 id="workspace-next-title">Create a capsule</h2>
+                <p id="workspace-next-description">
+                  Give chat a place to send a message to the future.
+                </p>
               </div>
-              <div id="trigger-followers" hidden>
-                <label for="capsule-followers">Follower goal</label
-                ><input
-                  id="capsule-followers"
-                  type="number"
-                  min="1"
-                  max="1000000000"
-                  step="1"
-                  required
-                  disabled
-                />
+              <a
+                id="workspace-next-action"
+                class="primary action-link"
+                href="#capsules-title"
+                >Get started <span aria-hidden="true">→</span></a
+              >
+            </div>
+            <section
+              id="view-capsules"
+              class="workspace-view capsules-section"
+              data-workspace-view="capsules"
+              aria-labelledby="capsules-title"
+            >
+              <div class="log-header">
+                <div>
+                  <p class="eyebrow">01 · COLLECT</p>
+                  <h2 id="capsules-title" tabindex="-1">Your capsules</h2>
+                  <p class="section-description">
+                    Collect messages first. Open your capsule when you’re ready
+                    to reveal them.
+                  </p>
+                </div>
               </div>
-              <div id="trigger-category" hidden>
-                <label for="category-query">Search Twitch categories</label
-                ><input
-                  id="category-query"
-                  autocomplete="off"
-                  minlength="2"
-                  maxlength="100"
-                  required
-                  disabled
-                  placeholder="Grand Theft Auto"
-                />
-                <div
-                  id="category-results"
-                  class="category-results"
-                  aria-live="polite"
-                ></div>
-              </div>
-              <details class="capsule-settings">
-                <summary>Limits &amp; Prophet rewards</summary>
-                <div class="field-pair">
-                  <div>
-                    <label for="capsule-limit">Seals per viewer</label
+              <div id="capsule-feedback" role="status" aria-live="polite"></div>
+              <div class="capsule-workspace">
+                <form id="capsule-form" class="capsule-form">
+                  <h3>New capsule</h3>
+                  <label for="capsule-title">Title</label
+                  ><input
+                    id="capsule-title"
+                    name="title"
+                    required
+                    maxlength="120"
+                    placeholder="e.g. Our next big win"
+                  />
+                  <label for="capsule-trigger">When should it open?</label>
+                  <select id="capsule-trigger" name="trigger">
+                    <option value="manual">When I choose</option>
+                    <option value="date">On a date</option>
+                    <option value="followers">At a follower goal</option>
+                    <option value="category">First stream in a category</option>
+                  </select>
+                  <div id="trigger-date" hidden>
+                    <label for="capsule-date"
+                      >Opening date (your local time)</label
                     ><input
-                      id="capsule-limit"
+                      id="capsule-date"
+                      type="datetime-local"
+                      required
+                      disabled
+                    />
+                  </div>
+                  <div id="trigger-followers" hidden>
+                    <label for="capsule-followers">Follower goal</label
+                    ><input
+                      id="capsule-followers"
                       type="number"
                       min="1"
-                      max="100"
+                      max="1000000000"
                       step="1"
-                      value="3"
                       required
+                      disabled
                     />
                   </div>
-                  <div>
-                    <label for="capsule-length">Maximum length</label
+                  <div id="trigger-category" hidden>
+                    <label for="category-query">Search Twitch categories</label
                     ><input
-                      id="capsule-length"
+                      id="category-query"
+                      autocomplete="off"
+                      minlength="2"
+                      maxlength="100"
+                      required
+                      disabled
+                      placeholder="Grand Theft Auto"
+                    />
+                    <div
+                      id="category-results"
+                      class="category-results"
+                      aria-live="polite"
+                    ></div>
+                  </div>
+                  <details class="capsule-settings">
+                    <summary>Message limits &amp; optional VIP</summary>
+                    <div class="field-pair">
+                      <div>
+                        <label for="capsule-limit">Messages per viewer</label
+                        ><input
+                          id="capsule-limit"
+                          type="number"
+                          min="1"
+                          max="100"
+                          step="1"
+                          value="3"
+                          required
+                        />
+                      </div>
+                      <div>
+                        <label for="capsule-length"
+                          >Characters per message</label
+                        ><input
+                          id="capsule-length"
+                          type="number"
+                          min="3"
+                          max="280"
+                          step="1"
+                          value="280"
+                          required
+                        />
+                      </div>
+                    </div>
+                    <label class="checkbox-label"
+                      ><input id="capsule-vip" type="checkbox" /> Offer a Twitch
+                      VIP reward (optional)</label
+                    ><label for="capsule-vip-days">VIP days</label
+                    ><input
+                      id="capsule-vip-days"
                       type="number"
-                      min="3"
-                      max="280"
+                      min="1"
+                      max="365"
                       step="1"
-                      value="280"
+                      value="30"
                       required
                     />
+                    <p class="metadata">
+                      Mark revealed predictions as true to honor Prophets. VIP
+                      rewards expire after the days you choose.
+                    </p>
+                  </details>
+                  <button
+                    id="create-capsule"
+                    class="primary"
+                    type="submit"
+                    disabled
+                  >
+                    Create &amp; start collecting
+                  </button>
+                  <p class="form-hint">
+                    Viewers join from Twitch chat with
+                    <code>!seal their prediction</code>.
+                  </p>
+                  <p id="capsule-form-note" class="metadata">
+                    Connect the streamer account to create a capsule.
+                  </p>
+                </form>
+                <div class="capsule-results">
+                  <div class="capsule-list-tools">
+                    <span class="metadata">Your capsules</span>
+                    <button
+                      id="delete-all-capsules"
+                      class="delete-capsule"
+                      type="button"
+                      disabled
+                    >
+                      Delete all
+                    </button>
                   </div>
+                  <div
+                    id="capsule-list"
+                    class="capsule-list"
+                    aria-label="Your capsules"
+                  ></div>
                 </div>
-                <label class="checkbox-label"
-                  ><input id="capsule-vip" type="checkbox" /> Reward Prophets
-                  with VIP</label
-                ><label for="capsule-vip-days">VIP days</label
-                ><input
-                  id="capsule-vip-days"
-                  type="number"
-                  min="1"
-                  max="365"
-                  step="1"
-                  value="30"
-                  required
-                />
-                <p class="metadata">
-                  Mark revealed predictions as true to honor Prophets. VIP
-                  rewards expire after the days you choose.
-                </p>
-              </details>
-              <button
-                id="create-capsule"
-                class="primary"
-                type="submit"
-                disabled
-              >
-                Create capsule
-              </button>
-              <p id="capsule-form-note" class="metadata">
-                Connect the streamer account to create a capsule.
+              </div>
+            </section>
+            <section
+              id="view-ceremony"
+              class="workspace-view ceremony-section"
+              data-workspace-view="ceremony"
+              aria-labelledby="ceremony-title"
+              hidden
+            >
+              <div class="section-heading">
+                <div>
+                  <p class="eyebrow">02 · REVEAL</p>
+                  <h2 id="ceremony-title" tabindex="-1">Opening ceremony</h2>
+                </div>
+                <span id="ceremony-stage" class="badge">WAITING</span>
+              </div>
+              <p id="ceremony-summary" class="muted">
+                Waiting for a capsule to open.
               </p>
-            </form>
-            <div class="capsule-results">
-              <div class="capsule-list-tools">
-                <span class="metadata">Your capsules</span>
-                <button
-                  id="delete-all-capsules"
-                  class="delete-capsule"
-                  type="button"
-                  disabled
+              <div
+                id="ceremony-feedback"
+                role="status"
+                aria-live="polite"
+              ></div>
+              <div id="ceremony-warnings" aria-live="polite"></div>
+              <div id="ceremony-controls" hidden>
+                <p id="ceremony-counts" class="metadata"></p>
+                <div class="actions">
+                  <button
+                    id="approve-all-pending"
+                    class="secondary"
+                    type="button"
+                  >
+                    Approve all pending
+                  </button>
+                  <button id="reveal-next" class="primary" type="button">
+                    Reveal next · N
+                  </button>
+                  <button id="auto-reveal" class="secondary" type="button">
+                    Start auto-reveal
+                  </button>
+                  <button id="end-ceremony" class="secondary" type="button">
+                    End ceremony
+                  </button>
+                </div>
+                <p class="metadata">
+                  Approve the messages you want on stream, then reveal them.
+                  Press N to reveal the next one. End ceremony when you’re
+                  finished.
+                </p>
+                <p class="metadata">
+                  <span id="auto-reveal-timing"></span>
+                  <a class="public-link" href="#auto-seconds"
+                    >Change interval</a
+                  >
+                </p>
+                <div class="queue-tools">
+                  <label for="queue-filter">Show messages</label>
+                  <select id="queue-filter">
+                    <option value="pending">Pending</option>
+                    <option value="approved">Approved</option>
+                    <option value="rejected">Rejected</option>
+                    <option value="revealed">Revealed</option>
+                    <option value="all">All</option>
+                  </select>
+                  <button id="queue-refresh" type="button" class="secondary">
+                    Refresh queue
+                  </button>
+                </div>
+                <div
+                  id="mod-queue"
+                  class="mod-queue"
+                  aria-label="Private moderation queue"
+                ></div>
+                <div class="queue-pagination">
+                  <button id="queue-prev" type="button" class="secondary">
+                    Previous</button
+                  ><span id="queue-page" class="metadata"></span
+                  ><button id="queue-next" type="button" class="secondary">
+                    Next
+                  </button>
+                </div>
+              </div>
+            </section>
+            <section
+              id="view-prophets"
+              class="workspace-view ceremony-section"
+              data-workspace-view="prophets"
+              aria-labelledby="prophets-title"
+              hidden
+            >
+              <div class="section-heading">
+                <div>
+                  <p class="eyebrow">03 · CELEBRATE</p>
+                  <h2 id="prophets-title" tabindex="-1">Prophets</h2>
+                </div>
+                <div class="section-actions">
+                  <button
+                    type="button"
+                    id="prophets-end-ceremony"
+                    class="secondary"
+                    hidden
+                  >
+                    End ceremony &amp; clear overlay
+                  </button>
+                  <button type="button" id="prophets-refresh" class="secondary">
+                    Refresh Prophets
+                  </button>
+                  <button
+                    type="button"
+                    id="delete-all-prophets"
+                    class="delete-capsule"
+                    disabled
+                  >
+                    Delete all
+                  </button>
+                </div>
+              </div>
+              <p class="muted">
+                Who saw it coming? Mark correct predictions as Came true to
+                celebrate your viewers on stream and on the public Wall.
+              </p>
+              <details class="showcase-disclosure">
+                <summary>
+                  <span>Play winners on stream</span
+                  ><span class="summary-meta"
+                    >Automatic scrolling showcase</span
+                  >
+                </summary>
+                <div
+                  class="showcase-panel"
+                  id="showcase-controls"
+                  tabindex="-1"
                 >
-                  Delete all
-                </button>
+                  <h3>Stream Prophet showcase</h3>
+                  <p class="metadata">
+                    After ending the ceremony, celebrate every winning
+                    prediction on your existing OBS overlay, three cards at a
+                    time.
+                  </p>
+                  <div class="showcase-fields">
+                    <label
+                      >Capsule<select
+                        id="showcase-capsule"
+                        aria-label="Showcase capsule"
+                      ></select
+                    ></label>
+                    <label
+                      >Seconds per prediction<input
+                        id="showcase-seconds"
+                        type="number"
+                        min="3"
+                        max="60"
+                        value="5"
+                    /></label>
+                  </div>
+                  <div class="actions">
+                    <a
+                      id="view-showcase"
+                      class="secondary action-link"
+                      href="#showcase-overlay"
+                      >View showcase →</a
+                    >
+                    <button id="showcase-start" class="primary" type="button">
+                      Start showcase
+                    </button>
+                    <button
+                      id="showcase-pause"
+                      class="secondary"
+                      type="button"
+                      disabled
+                    >
+                      Pause showcase
+                    </button>
+                    <button
+                      id="showcase-next"
+                      class="secondary"
+                      type="button"
+                      disabled
+                    >
+                      Next winner
+                    </button>
+                    <button
+                      id="showcase-stop"
+                      class="secondary"
+                      type="button"
+                      disabled
+                    >
+                      Stop showcase
+                    </button>
+                  </div>
+                  <p
+                    id="showcase-progress"
+                    class="metadata"
+                    role="status"
+                    aria-live="polite"
+                  ></p>
+                </div>
+              </details>
+              <div class="prophet-filters">
+                <label
+                  >Search predictions<input
+                    id="prophets-search"
+                    type="search"
+                    maxlength="100"
+                    placeholder="Viewer, prediction, or capsule"
+                /></label>
+                <label
+                  >Show<select id="prophets-filter">
+                    <option value="all">All revealed predictions</option>
+                    <option value="unmarked">Not marked true</option>
+                    <option value="true">Came true</option>
+                  </select></label
+                >
               </div>
               <div
-                id="capsule-list"
-                class="capsule-list"
-                aria-label="Your capsules"
+                id="prophets-feedback"
+                role="status"
+                aria-live="polite"
               ></div>
-            </div>
-          </div>
-        </section>
-        <section class="ceremony-section" aria-labelledby="ceremony-title">
-          <div class="section-heading">
-            <h2 id="ceremony-title">Opening ceremony</h2>
-            <span id="ceremony-stage" class="badge">WAITING</span>
-          </div>
-          <p id="ceremony-summary" class="muted">
-            Waiting for a capsule to open.
-          </p>
-          <div id="ceremony-feedback" role="status" aria-live="polite"></div>
-          <div id="ceremony-warnings" aria-live="polite"></div>
-          <div id="ceremony-controls" hidden>
-            <p id="ceremony-counts" class="metadata"></p>
-            <div class="actions">
-              <button id="reveal-next" class="primary" type="button">
-                Reveal next · N
-              </button>
-              <button id="auto-reveal" class="secondary" type="button">
-                Start auto-reveal
-              </button>
-              <button id="end-ceremony" class="secondary" type="button">
-                End ceremony
-              </button>
-            </div>
-            <p class="metadata">
-              Only approved messages can be revealed. Press N when you are not
-              typing in a field. Ending the ceremony clears the overlay.
-            </p>
-            <div class="queue-tools">
-              <label for="queue-filter">Show messages</label>
-              <select id="queue-filter">
-                <option value="pending">Pending</option>
-                <option value="approved">Approved</option>
-                <option value="rejected">Rejected</option>
-                <option value="revealed">Revealed</option>
-                <option value="all">All</option>
-              </select>
-              <button id="queue-refresh" type="button" class="secondary">
-                Refresh queue
-              </button>
-            </div>
-            <div
-              id="mod-queue"
-              class="mod-queue"
-              aria-label="Private moderation queue"
-            ></div>
-            <div class="queue-pagination">
-              <button id="queue-prev" type="button" class="secondary">
-                Previous</button
-              ><span id="queue-page" class="metadata"></span
-              ><button id="queue-next" type="button" class="secondary">
-                Next
-              </button>
-            </div>
-          </div>
-        </section>
-        <section class="ceremony-section" aria-labelledby="prophets-title">
-          <div class="section-heading">
-            <h2 id="prophets-title">Prophets</h2>
-            <div class="section-actions">
-              <button type="button" id="prophets-refresh" class="secondary">
-                Refresh Prophets
-              </button>
-              <button
-                type="button"
-                id="delete-all-prophets"
-                class="delete-capsule"
-                disabled
-              >
-                Delete all
-              </button>
-            </div>
-          </div>
-          <p class="muted">
-            Mark a revealed prediction as true to celebrate it on the overlay
-            and announce it in chat. After the ceremony, Prophet display names
-            appear on the public Wall of Prophets.
-          </p>
-          <div id="prophets-feedback" role="status" aria-live="polite"></div>
-          <div id="prophets-warnings" aria-live="polite"></div>
-          <div
-            id="prophets-list"
-            class="mod-queue"
-            aria-label="Revealed predictions and Prophet rewards"
-          ></div>
-          <div class="queue-pagination">
-            <button type="button" id="prophets-prev" class="secondary">
-              Previous Prophets</button
-            ><span id="prophets-page" class="metadata"></span
-            ><button type="button" id="prophets-next" class="secondary">
-              Next Prophets
-            </button>
-          </div>
-          <p class="metadata">
-            VIP expiry runs at startup and every hour while this app is running.
-            Existing VIPs are preserved. Failed or interrupted rewards are shown
-            here for review.
-          </p>
-          <button type="button" id="prophets-expiry" class="secondary">
-            Check expired VIP rewards
-          </button>
-        </section>
-        <section class="ceremony-section" aria-labelledby="overlay-title">
-          <div class="section-heading">
-            <h2 id="overlay-title">Your OBS overlay</h2>
-            <button id="preview-overlay" type="button" class="secondary">
-              Play 10-second preview
-            </button>
-          </div>
-          <p class="muted">
-            Empty and transparent between ceremonies. The preview uses sample
-            messages and does not change your capsules.
-          </p>
-          <label for="obs-url">Private OBS Browser Source URL</label>
-          <div class="overlay-url-row">
-            <input id="obs-url" type="text" readonly /><button
-              id="copy-obs-url"
-              type="button"
-              class="secondary"
+              <div id="prophets-warnings" aria-live="polite"></div>
+              <div
+                id="prophets-list"
+                class="mod-queue"
+                aria-label="Revealed predictions and Prophet rewards"
+              ></div>
+              <div class="queue-pagination">
+                <button type="button" id="prophets-prev" class="secondary">
+                  Previous Prophets</button
+                ><span id="prophets-page" class="metadata"></span
+                ><button type="button" id="prophets-next" class="secondary">
+                  Next Prophets
+                </button>
+              </div>
+              <details class="advanced-details">
+                <summary>VIP reward maintenance</summary>
+                <p class="metadata">
+                  Expired app-owned VIP rewards are checked at startup and
+                  hourly while the app is running. Existing VIPs are preserved.
+                </p>
+                <button type="button" id="prophets-expiry" class="secondary">
+                  Check expired VIP rewards
+                </button>
+              </details>
+            </section>
+            <section
+              id="view-overlay"
+              class="workspace-view ceremony-section"
+              data-workspace-view="overlay"
+              aria-labelledby="overlay-title"
+              hidden
             >
-              Copy OBS URL
-            </button>
-          </div>
-          <p class="metadata">
-            Use 1920 × 1080. Turn off “Shutdown source when not visible” and
-            “Refresh browser when scene becomes active”. Keep this URL private.
-          </p>
-          <form id="overlay-settings" class="overlay-settings">
-            <div>
-              <label for="overlay-side">Card side</label
-              ><select id="overlay-side">
-                <option value="right">Right</option>
-                <option value="left">Left</option>
-              </select>
-            </div>
-            <div>
-              <label for="overlay-scale">Card size</label
-              ><select id="overlay-scale">
-                <option value="0.85">Small · 85%</option>
-                <option value="1">Medium · 100%</option>
-                <option value="1.15">Large · 115%</option>
-              </select>
-            </div>
-            <div>
-              <label for="auto-seconds">Auto-reveal interval</label
-              ><input
-                id="auto-seconds"
-                type="number"
-                min="3"
-                max="60"
-                step="1"
-                value="8"
-                required
-              />
-            </div>
-            <button class="secondary" id="save-overlay-settings" type="submit">
-              Save settings
-            </button>
-          </form>
-          <details class="overlay-monitor">
-            <summary>Show overlay monitor</summary>
-            <p class="metadata">
-              The checkerboard is only the dashboard background. The OBS overlay
-              itself is transparent.
-            </p>
-            <div class="monitor-background">
-              <iframe
-                id="overlay-monitor"
-                title="Time Capsule overlay monitor"
-                referrerpolicy="no-referrer"
-              ></iframe>
-            </div>
-          </details>
-        </section>
-        <section class="log-section" aria-labelledby="log-title">
-          <div class="log-header">
-            <h2 id="log-title">Channel activity</h2>
-            <span class="metadata">Latest 100 events</span>
-          </div>
-          <ol id="events-log" aria-label="Recent Twitch events"></ol>
-        </section>
-        <section class="setup-note">
-          <span class="note-icon" aria-hidden="true">i</span>
-          <div>
-            <h2>One account is enough to begin.</h2>
-            <p>
-              For a separate bot, sign in to that account on Twitch before
-              authorizing it. Recheck after making the bot a moderator. Chat is
-              listening. Send !capsule from a viewer account to test the reply.
-              Your capsule keeper ignores commands from its own account.
-            </p>
-          </div>
-        </section>
-      </main>
-      <footer>
-        <span>SEALED TODAY. REVEALED WHEN IT MATTERS.</span
-        ><span>LOCAL DASHBOARD &middot; KEEP THIS LINK PRIVATE</span>
-      </footer>
+              <div class="section-heading">
+                <div>
+                  <p class="eyebrow">STREAM SETUP</p>
+                  <h2 id="overlay-title" tabindex="-1">Your OBS overlay</h2>
+                </div>
+                <div class="section-actions">
+                  <a class="secondary action-link" href="#showcase-overlay"
+                    >View showcase →</a
+                  >
+                  <button id="preview-overlay" type="button" class="secondary">
+                    Play 10-second preview
+                  </button>
+                </div>
+              </div>
+              <p class="muted">
+                Empty and transparent between ceremonies. The preview uses
+                sample messages and does not change your capsules.
+              </p>
+              <div id="overlay-feedback" role="status" aria-live="polite"></div>
+              <div class="setup-instructions">
+                <span class="setup-step">1</span>
+                <p>
+                  In OBS, add a <strong>Browser source</strong> at
+                  <strong>1920 × 1080</strong>, then paste the URL below.
+                </p>
+              </div>
+              <label for="obs-url">Private OBS Browser Source URL</label>
+              <div class="overlay-url-row">
+                <input id="obs-url" type="text" readonly /><button
+                  id="copy-obs-url"
+                  type="button"
+                  class="secondary"
+                >
+                  Copy OBS URL
+                </button>
+              </div>
+              <p class="metadata">
+                Use 1920 × 1080. Turn off “Shutdown source when not visible” and
+                “Refresh browser when scene becomes active”. Keep this URL
+                private.
+              </p>
+              <form id="overlay-settings" class="overlay-settings">
+                <div>
+                  <label for="overlay-side">Card side</label
+                  ><select id="overlay-side">
+                    <option value="right">Right</option>
+                    <option value="left">Left</option>
+                  </select>
+                </div>
+                <div>
+                  <label for="overlay-scale">Card size</label
+                  ><select id="overlay-scale">
+                    <option value="0.85">Small · 85%</option>
+                    <option value="1">Medium · 100%</option>
+                    <option value="1.15">Large · 115%</option>
+                  </select>
+                </div>
+                <div>
+                  <label for="auto-seconds">Auto-reveal interval</label
+                  ><input
+                    id="auto-seconds"
+                    type="number"
+                    min="3"
+                    max="60"
+                    step="1"
+                    value="8"
+                    required
+                  />
+                </div>
+                <button
+                  class="secondary"
+                  id="save-overlay-settings"
+                  type="submit"
+                >
+                  Save settings
+                </button>
+              </form>
+              <details class="overlay-monitor">
+                <summary>Show overlay monitor</summary>
+                <p class="metadata">
+                  The checkerboard is only the dashboard background. The OBS
+                  overlay itself is transparent.
+                </p>
+                <div
+                  id="showcase-overlay"
+                  class="monitor-showcase"
+                  tabindex="-1"
+                >
+                  <div class="section-heading">
+                    <h3>Showcase on your overlay</h3>
+                    <a href="#showcase-controls" class="public-link"
+                      >Go to showcase controls →</a
+                    >
+                  </div>
+                  <div class="showcase-fields">
+                    <label
+                      >Capsule<select
+                        id="monitor-showcase-capsule"
+                        aria-label="Overlay showcase capsule"
+                      ></select
+                    ></label>
+                    <label
+                      >Seconds per prediction<input
+                        id="monitor-showcase-seconds"
+                        type="number"
+                        min="3"
+                        max="60"
+                        value="5"
+                    /></label>
+                  </div>
+                  <div class="actions">
+                    <button
+                      id="monitor-showcase-start"
+                      class="primary"
+                      type="button"
+                    >
+                      Start showcase
+                    </button>
+                    <button
+                      id="monitor-showcase-pause"
+                      class="secondary"
+                      type="button"
+                      disabled
+                    >
+                      Pause showcase
+                    </button>
+                    <button
+                      id="monitor-showcase-next"
+                      class="secondary"
+                      type="button"
+                      disabled
+                    >
+                      Next winner
+                    </button>
+                    <button
+                      id="monitor-showcase-stop"
+                      class="secondary"
+                      type="button"
+                      disabled
+                    >
+                      Stop showcase
+                    </button>
+                    <a
+                      id="open-showcase-overlay"
+                      class="secondary action-link"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      aria-disabled="true"
+                      >Open overlay ↗</a
+                    >
+                  </div>
+                  <p
+                    id="monitor-showcase-progress"
+                    class="metadata"
+                    role="status"
+                    aria-live="polite"
+                  ></p>
+                  <div
+                    id="monitor-showcase-feedback"
+                    role="status"
+                    aria-live="polite"
+                  ></div>
+                </div>
+                <div class="monitor-background">
+                  <iframe
+                    id="overlay-monitor"
+                    title="Time Capsule overlay monitor"
+                    referrerpolicy="no-referrer"
+                  ></iframe>
+                </div>
+              </details>
+            </section>
+            <section
+              id="view-connection"
+              class="workspace-view"
+              data-workspace-view="connection"
+              aria-labelledby="connection-title"
+              hidden
+            >
+              <div class="section-heading">
+                <div>
+                  <p class="eyebrow">SETUP &amp; STATUS</p>
+                  <h2 id="connection-title" tabindex="-1">
+                    Your Twitch connection
+                  </h2>
+                  <p class="section-description">
+                    Connect your channel once. A separate bot is optional.
+                  </p>
+                </div>
+              </div>
+              <section class="channel-strip" aria-label="Channel checks">
+                <div>
+                  <p class="eyebrow">STREAM</p>
+                  <strong id="live-status">Waiting for channel</strong>
+                </div>
+                <div>
+                  <p class="eyebrow">CHAT MODERATION</p>
+                  <strong id="mod-status">Not checked</strong>
+                </div>
+                <div>
+                  <p class="eyebrow">EVENTSUB</p>
+                  <strong id="eventsub-status">Connecting...</strong>
+                </div>
+                <button id="refresh" class="secondary">
+                  Recheck connection
+                </button>
+              </section>
+              <section class="accounts" aria-label="Twitch accounts">
+                <article class="account-card">
+                  <div class="card-top">
+                    <span class="card-number">01</span
+                    ><span id="streamer-status" class="badge">LOADING</span>
+                  </div>
+                  <h2>Streamer account</h2>
+                  <p class="card-description">
+                    The channel where viewers send their predictions.
+                  </p>
+                  <div class="identity">
+                    <span class="avatar" aria-hidden="true">S</span>
+                    <div>
+                      <strong id="streamer-name">Not connected</strong>
+                      <p id="streamer-login" class="muted">
+                        Connect to get started
+                      </p>
+                    </div>
+                  </div>
+                  <p id="streamer-error" class="account-error"></p>
+                  <details class="account-details">
+                    <summary>Account details</summary>
+                    <p id="streamer-expiry" class="metadata"></p>
+                    <div id="streamer-scopes" class="scopes"></div>
+                    <p id="streamer-validation" class="metadata"></p>
+                  </details>
+                  <div class="actions">
+                    <span
+                      id="streamer-connected"
+                      class="account-connected"
+                      role="status"
+                      hidden
+                      >Account connected</span
+                    >
+                    <a
+                      data-connect="streamer"
+                      class="primary action-link"
+                      aria-disabled="true"
+                      rel="noopener noreferrer"
+                    >
+                      Connect streamer account &#8599;</a
+                    ><button data-disconnect="streamer" class="quiet" hidden>
+                      Disconnect locally
+                    </button>
+                  </div>
+                </article>
+                <article class="account-card">
+                  <div class="card-top">
+                    <span class="card-number">02</span
+                    ><span id="bot-status" class="badge">OPTIONAL</span>
+                  </div>
+                  <h2>
+                    Bot account <span class="optional-label">Optional</span>
+                  </h2>
+                  <p class="card-description">
+                    Use a separate account for chat replies, or let your
+                    streamer account do both.
+                  </p>
+                  <div class="identity">
+                    <span class="avatar bot" aria-hidden="true">B</span>
+                    <div>
+                      <strong id="bot-name">Single-account mode</strong>
+                      <p id="bot-login" class="muted">
+                        Uses your streamer account
+                      </p>
+                    </div>
+                  </div>
+                  <p id="bot-error" class="account-error"></p>
+                  <details class="account-details">
+                    <summary>Account details</summary>
+                    <p id="bot-expiry" class="metadata"></p>
+                    <div id="bot-scopes" class="scopes"></div>
+                    <p id="bot-validation" class="metadata"></p>
+                  </details>
+                  <div class="actions">
+                    <span
+                      id="bot-connected"
+                      class="account-connected"
+                      role="status"
+                      hidden
+                      >Account connected</span
+                    >
+                    <a
+                      data-connect="bot"
+                      class="secondary action-link"
+                      aria-disabled="true"
+                      rel="noopener noreferrer"
+                    >
+                      Connect bot account &#8599;</a
+                    ><button data-disconnect="bot" class="quiet" hidden>
+                      Disconnect locally
+                    </button>
+                  </div>
+                </article>
+              </section>
+              <details class="advanced-details">
+                <summary>Connection details &amp; activity</summary>
+                <p id="checked-at" class="metadata"></p>
+                <p id="dashboard-updates" class="metadata" role="status">
+                  Connecting live dashboard updates...
+                </p>
+                <details class="eventsub-details">
+                  <summary>Event subscriptions &amp; keepalive</summary>
+                  <div id="subscription-list"></div>
+                </details>
+
+                <section class="log-section" aria-labelledby="log-title">
+                  <div class="log-header">
+                    <h2 id="log-title">Channel activity</h2>
+                    <span class="metadata">Latest 100 events</span>
+                  </div>
+                  <ol id="events-log" aria-label="Recent Twitch events"></ol>
+                </section>
+              </details>
+              <section class="setup-note">
+                <span class="note-icon" aria-hidden="true">i</span>
+                <div>
+                  <h2>One account is enough to begin.</h2>
+                  <p>
+                    For a separate bot, sign in to that account on Twitch before
+                    authorizing it. Recheck after making the bot a moderator.
+                    Chat is listening. Send !capsule from a viewer account to
+                    test the reply. Your capsule keeper ignores commands from
+                    its own account.
+                  </p>
+                </div>
+              </section>
+            </section>
+          </main>
+          <footer>
+            <span>TIME CAPSULE</span
+            ><span>Keep your dashboard and OBS links private.</span>
+          </footer>
+        </div>
+      </div>
     </div>
+    <aside
+      id="prophets-reminder"
+      class="prophets-reminder"
+      role="status"
+      aria-live="polite"
+      aria-atomic="true"
+      hidden
+    >
+      <button
+        id="dismiss-prophets-reminder"
+        class="reminder-dismiss secondary"
+        type="button"
+        aria-label="Dismiss Prophet reminder"
+      >
+        &times;
+      </button>
+      <strong>All reveals are complete</strong>
+      <p>Now go to Prophets to mark predictions that came true.</p>
+      <a
+        id="go-to-prophets"
+        class="primary reminder-link"
+        href="#prophets-title"
+        >Go to Prophets &rarr;</a
+      >
+    </aside>
   </body>
 </html>

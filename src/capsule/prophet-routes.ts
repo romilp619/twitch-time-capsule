@@ -15,12 +15,19 @@ export function registerProphetRoutes(
       .object({
         offset: z.coerce.number().int().min(0).max(1_000_000).default(0),
         limit: z.coerce.number().int().min(1).max(100).default(50),
+        query: z.string().trim().max(100).default(''),
+        filter: z.enum(['all', 'true', 'unmarked']).default('all'),
       })
       .strict()
       .safeParse(request.query);
     if (!parsed.success)
       throw new CapsuleError(400, 'Choose a valid Prophet page.');
-    return prophets.list(parsed.data.offset, parsed.data.limit);
+    return prophets.list(
+      parsed.data.offset,
+      parsed.data.limit,
+      parsed.data.query,
+      parsed.data.filter,
+    );
   });
   app.delete('/api/prophets', { preHandler: requireAdmin }, async () => ({
     deleted: await prophets.deletePredictions(),

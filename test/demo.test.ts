@@ -246,7 +246,13 @@ describe('Account-free isolated demo', () => {
     const slug = new URL(done.links.public!).pathname.split('/').at(-1);
     const pub = (await f.app.inject('/api/public/capsules/' + slug)).json();
     expect(pub.prophets).toEqual([
-      { displayName: 'FutureViewer', predictions: 1 },
+      {
+        displayName: 'FutureViewer',
+        predictions: 1,
+        messages: [
+          { number: 3, text: 'We will win the first race without restarting.' },
+        ],
+      },
     ]);
     expect(JSON.stringify(pub)).not.toContain(sampleViewers[0][1]);
   });

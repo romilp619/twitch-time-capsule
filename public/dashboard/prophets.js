@@ -5,6 +5,12 @@ let prophetBusy = false;
 let prophetLoading = false;
 let prophetSignature = '';
 let prophetConnectionError = false;
+let prophetSearch = '';
+let prophetFilter = 'all';
+let prophetQueryVersion = 0;
+let prophetSearchTimer;
+let showcaseState;
+let showcaseBusy = false;
 function prophetNode(tag, className, text) {
   const element = document.createElement(tag);
   element.className = className;
@@ -202,11 +208,21 @@ function renderProphets(data) {
 async function refreshProphets() {
   if (prophetLoading || prophetBusy) return;
   prophetLoading = true;
+  const version = prophetQueryVersion;
+  const pageUrl = () =>
+    '/api/prophets?' +
+    new URLSearchParams({
+      offset: String(prophetOffset),
+      query: prophetSearch,
+      filter: prophetFilter,
+    });
   try {
-    let data = await prophetApi('/api/prophets?offset=' + prophetOffset);
+    let data = await prophetApi(pageUrl());
+    if (version !== prophetQueryVersion) return;
     if (prophetOffset > 0 && prophetOffset >= data.total) {
       prophetOffset = Math.max(0, Math.floor((data.total - 1) / 50) * 50);
-      data = await prophetApi('/api/prophets?offset=' + prophetOffset);
+      data = await prophetApi(pageUrl());
+      if (version !== prophetQueryVersion) return;
     }
     if (prophetConnectionError) prophetMessage('');
     prophetConnectionError = false;
@@ -217,12 +233,14 @@ async function refreshProphets() {
     }
   } catch (error) {
     prophetConnectionError = true;
+    if (version !== prophetQueryVersion) return;
     prophetMessage(
       error instanceof Error ? error.message : 'Unable to load Prophets.',
       true,
     );
   } finally {
     prophetLoading = false;
+    if (version !== prophetQueryVersion) void refreshProphets();
   }
 }
 document.getElementById('delete-all-prophets').addEventListener('click', () => {
@@ -249,6 +267,153 @@ document.getElementById('prophets-next').addEventListener('click', () => {
   if (prophetOffset + 50 < prophetTotal) prophetOffset += 50;
   void refreshProphets();
 });
+document
+  .getElementById('prophets-search')
+  .addEventListener('input', (event) => {
+    clearTimeout(prophetSearchTimer);
+    prophetSearch = event.target.value.trim();
+    prophetOffset = 0;
+    prophetQueryVersion++;
+    prophetSearchTimer = setTimeout(() => {
+      void refreshProphets();
+    }, 250);
+  });
+document
+  .getElementById('prophets-filter')
+  .addEventListener('change', (event) => {
+    prophetFilter = event.target.value;
+    prophetOffset = 0;
+    prophetQueryVersion++;
+    void refreshProphets();
+  });
+const showcasePrefixes = ['showcase-', 'monitor-showcase-'];
+async function refreshShowcase() {
+  if (showcaseBusy) return;
+  try {
+    const data = await prophetApi('/api/showcase');
+    showcaseState = data;
+    const selected = document.getElementById('showcase-capsule').value;
+    const active = ['playing', 'paused'].includes(data.status);
+    const capsuleId = active
+      ? String(data.capsuleId)
+      : data.capsules.some((capsule) => String(capsule.id) === selected)
+        ? selected
+        : String(data.capsules[0]?.id || '');
+    const progress =
+      active || data.status === 'finished'
+        ? (data.status === 'finished'
+            ? 'Finished'
+            : data.status === 'paused'
+              ? 'Paused'
+              : 'Playing') +
+          ' · ' +
+          data.shown +
+          ' of ' +
+          data.total +
+          ' winning predictions · ' +
+          data.intervalSeconds +
+          ' seconds each'
+        : data.ceremonyActive
+          ? 'End the ceremony before starting a showcase.'
+          : 'Choose a completed capsule with predictions marked Came true.';
+    for (const prefix of showcasePrefixes) {
+      const select = document.getElementById(prefix + 'capsule');
+      select.replaceChildren();
+      for (const capsule of data.capsules) {
+        const option = prophetNode(
+          'option',
+          '',
+          capsule.title + ' · ' + capsule.total + ' winners',
+        );
+        option.value = String(capsule.id);
+        select.append(option);
+      }
+      select.value = capsuleId;
+      select.disabled = active;
+      document.getElementById(prefix + 'seconds').disabled = active;
+      if (active)
+        document.getElementById(prefix + 'seconds').value = String(
+          data.intervalSeconds,
+        );
+      document.getElementById(prefix + 'start').disabled =
+        data.ceremonyActive || active || !data.capsules.length;
+      document.getElementById(prefix + 'pause').disabled = !active;
+      document.getElementById(prefix + 'pause').textContent =
+        data.status === 'paused' ? 'Resume showcase' : 'Pause showcase';
+      document.getElementById(prefix + 'next').disabled = !active;
+      document.getElementById(prefix + 'stop').disabled = !active;
+      document.getElementById(prefix + 'progress').textContent = progress;
+    }
+  } catch (error) {
+    for (const prefix of showcasePrefixes)
+      document.getElementById(prefix + 'progress').textContent =
+        error instanceof Error ? error.message : 'Unable to load showcase.';
+  }
+}
+async function showcaseAction(action) {
+  if (showcaseBusy) return;
+  showcaseBusy = true;
+  const feedback = document.getElementById('monitor-showcase-feedback');
+  feedback.textContent = '';
+  feedback.className = '';
+  try {
+    const body =
+      action === 'start'
+        ? {
+            action,
+            capsuleId: Number(
+              document.getElementById('showcase-capsule').value,
+            ),
+            intervalSeconds: Number(
+              document.getElementById('showcase-seconds').value,
+            ),
+          }
+        : { action };
+    const response = await fetch('/api/showcase', {
+      method: 'POST',
+      headers: {
+        'x-admin-key': prophetKey,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(body),
+    });
+    const data = await response.json();
+    if (!response.ok)
+      throw new Error(data.error || 'Unable to update showcase.');
+  } catch (error) {
+    const message =
+      error instanceof Error ? error.message : 'Unable to update showcase.';
+    prophetMessage(message, true);
+    feedback.textContent = message;
+    feedback.className = 'banner danger';
+  } finally {
+    showcaseBusy = false;
+    await refreshShowcase();
+  }
+}
+for (const prefix of showcasePrefixes) {
+  for (const action of ['start', 'next', 'stop'])
+    document.getElementById(prefix + action).addEventListener('click', () => {
+      void showcaseAction(action);
+    });
+  document.getElementById(prefix + 'pause').addEventListener('click', () => {
+    void showcaseAction(
+      showcaseState?.status === 'paused' ? 'resume' : 'pause',
+    );
+  });
+  for (const field of ['capsule', 'seconds'])
+    document
+      .getElementById(prefix + field)
+      .addEventListener(field === 'capsule' ? 'change' : 'input', (event) => {
+        for (const other of showcasePrefixes)
+          if (other !== prefix)
+            document.getElementById(other + field).value = event.target.value;
+      });
+}
+void refreshShowcase();
+setInterval(() => {
+  void refreshShowcase();
+}, 2000);
 void refreshProphets();
 setInterval(() => {
   void refreshProphets();

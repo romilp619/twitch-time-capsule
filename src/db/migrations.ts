@@ -136,6 +136,20 @@ export const migrations: readonly Migration[] = [
       INSERT INTO record_ids VALUES ('seals', (SELECT COALESCE(MAX(id), 0) FROM seals));
     `,
   },
+  {
+    version: 7,
+    name: 'large_prophet_collections',
+    sql: `
+      CREATE INDEX seals_showcase ON seals(capsule_id, came_true, status, number);
+      CREATE INDEX seals_revealed_list ON seals(status, came_true, revealed_at DESC, id DESC);
+      CREATE INDEX prophets_wall ON prophets(capsule_id, user_id, id);
+    `,
+  },
+  {
+    version: 8,
+    name: 'showcase_playback_progress',
+    sql: `ALTER TABLE ceremony_runtime ADD COLUMN showcase TEXT NOT NULL DEFAULT '{}';`,
+  },
 ];
 
 export function migrateDatabase(

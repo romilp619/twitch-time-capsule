@@ -60,8 +60,13 @@ describe('Seal parsing and moderation', () => {
     expect(parseSealCommand('hello !seal text')).toBeNull();
   });
   it('validates Unicode length and rejects unsafe control characters', () => {
-    expect(() => validateSealText('ab', 280)).toThrow('3 to 280');
-    expect(() => validateSealText('x'.repeat(281), 280)).toThrow();
+    expect(() => validateSealText('', 280)).toThrow(
+      'Add your prediction after !seal. Example: !seal',
+    );
+    expect(() => validateSealText('ab', 280)).toThrow('too short');
+    expect(() => validateSealText('x'.repeat(281), 280)).toThrow(
+      'at most 280 characters',
+    );
     expect(() =>
       validateSealText(String.fromCodePoint(0x1f52e).repeat(280), 280),
     ).not.toThrow();
